@@ -1,0 +1,724 @@
+export interface TitleAudit {
+  text: string;
+  length: number;
+  status: 'ok' | 'warning' | 'error' | 'missing';
+  message: string;
+}
+
+export interface DescriptionAudit {
+  text: string;
+  length: number;
+  status: 'ok' | 'warning' | 'error' | 'missing';
+  message: string;
+}
+
+export interface HeadingAudit {
+  h1: string[];
+  h2: string[];
+  h3: string[];
+  h4: string[];
+  h5: string[];
+  h6: string[];
+  status: 'ok' | 'warning' | 'error';
+  message: string;
+}
+
+export interface CanonicalAudit {
+  url: string;
+  status: 'ok' | 'warning' | 'error' | 'missing';
+  message: string;
+}
+
+export interface ImageAltDetail {
+  src: string;
+  alt: string;
+  isMissing: boolean;
+}
+
+export interface ImageAltsAudit {
+  total: number;
+  missing: number;
+  details: ImageAltDetail[];
+  status: 'ok' | 'warning' | 'error';
+  message: string;
+}
+
+export interface OpenGraphAudit {
+  title: string;
+  description: string;
+  image: string;
+  type: string;
+  status: 'ok' | 'missing';
+  message: string;
+}
+
+export interface TwitterCardAudit {
+  card: string;
+  title: string;
+  description: string;
+  image: string;
+  status: 'ok' | 'missing';
+  message: string;
+}
+
+export interface ContentMetrics {
+  wordCount: number;
+  contentRatio: number;
+  readingLevel: string;
+  language: string;
+}
+
+export interface HreflangItem {
+  hreflang: string;
+  href: string;
+}
+
+export interface OnPageSEOResults {
+  title: TitleAudit;
+  description: DescriptionAudit;
+  headings: HeadingAudit;
+  canonical: CanonicalAudit;
+  imageAlts: ImageAltsAudit;
+  openGraph: OpenGraphAudit;
+  twitterCard: TwitterCardAudit;
+  contentMetrics: ContentMetrics;
+  viewport: string;
+  charset: string;
+  favicon: string;
+  hreflangs: HreflangItem[];
+  robots: string;
+  schemaTypes: string[];
+  schemas: Array<{ type: string; code: string }>;
+  htmlSize: number;
+}
+
+export interface LinkItem {
+  id: number;
+  href: string;
+  text: string;
+  isExternal: boolean;
+  isSecure: boolean;
+  status: number | null;
+  statusText: string | null;
+  statusState: 'pending' | 'checking' | 'ok' | 'broken';
+  rel: string;
+  responseTime: number | null; // in ms
+  redirectDestination: string | null;
+}
+
+export interface PageSpeedMetric {
+  score: number; // 0 to 100
+  lcp: string; // Largest Contentful Paint
+  fid: string; // First Input Delay (or equivalent)
+  cls: string; // Cumulative Layout Shift
+  fcp: string; // First Contentful Paint
+  speedIndex: string;
+  ttfb?: string; // Time to First Byte
+  passedAudits?: string[];
+  recommendations: Array<{ title: string; description: string; displayValue?: string; impact?: number }>;
+}
+
+export interface AuditResults {
+  url: string;
+  timestamp: string;
+  onPage: OnPageSEOResults;
+  links: LinkItem[];
+  pageSpeedMobile: PageSpeedMetric | null;
+  pageSpeedDesktop: PageSpeedMetric | null;
+  score: number; // Overall SEO Score 0-100
+  grade: string; // Overall Grade e.g. A+, B, F
+}
+
+/**
+ * Normalizes URL relative paths relative to target base URL
+ */
+function normalizeUrl(href: string, baseUrl: string): string {
+  try {
+    return new URL(href, baseUrl).toString();
+  } catch {
+    return href;
+  }
+}
+
+/**
+ * Helper to build correct proxy url. Detects if proxyUrl already ends with or contains 'url='
+ */
+export function buildProxyFetchUrl(proxyUrl: string, targetUrl: string): string {
+  if (!proxyUrl) return targetUrl;
+  
+  // If the proxy URL already ends with a parameter pattern e.g. "url=" or "q="
+  if (/[?&]\w+=$/.test(proxyUrl)) {
+    return `${proxyUrl}${encodeURIComponent(targetUrl)}`;
+  }
+  
+  // If the proxy URL already contains "url=" or other query parameters
+  if (proxyUrl.includes('url=')) {
+    return proxyUrl;
+  }
+  
+  const separator = proxyUrl.includes('?') ? '&' : '?';
+  return `${proxyUrl}${separator}url=${encodeURIComponent(targetUrl)}`;
+}
+
+/**
+ * Calculates letter grade based on numeric score
+ */
+export function calculateGrade(score: number): string {
+  if (score >= 97) return 'A+';
+  if (score >= 93) return 'A';
+  if (score >= 90) return 'A-';
+  if (score >= 87) return 'B+';
+  if (score >= 83) return 'B';
+  if (score >= 80) return 'B-';
+  if (score >= 77) return 'C+';
+  if (score >= 73) return 'C';
+  if (score >= 70) return 'C-';
+  if (score >= 60) return 'D';
+  return 'F';
+}
+
+function getVisibleText(doc: Document): string {
+  const clone = doc.cloneNode(true) as Document;
+  const scripts = clone.querySelectorAll('script, style, noscript, iframe, svg, canvas, header, footer, nav');
+  scripts.forEach(el => el.remove());
+  return clone.body ? clone.body.textContent || '' : '';
+}
+
+function estimateReadingLevel(text: string): string {
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return 'N/A';
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const sentenceCount = Math.max(1, sentences.length);
+  let syllableCount = 0;
+  words.forEach(word => {
+    let cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
+    if (cleanWord.length <= 3) {
+      syllableCount += 1;
+      return;
+    }
+    const vowelGroups = cleanWord.match(/[aeiouy]+/g);
+    let count = vowelGroups ? vowelGroups.length : 1;
+    if (cleanWord.endsWith('e')) count--;
+    if (cleanWord.endsWith('es')) count--;
+    if (cleanWord.endsWith('ed')) count--;
+    syllableCount += Math.max(1, count);
+  });
+  const wordCount = words.length;
+  const grade = 0.39 * (wordCount / sentenceCount) + 11.8 * (syllableCount / wordCount) - 15.59;
+  const score = Math.round(grade);
+  if (score <= 5) return 'Easy (5th Grade or below)';
+  if (score <= 8) return 'Average (6th-8th Grade)';
+  if (score <= 12) return 'Medium (High School)';
+  return 'Difficult (College/Graduate)';
+}
+
+/**
+ * Runs SEO Audit on target page
+ */
+export async function runSEOAudit(
+  targetUrl: string,
+  proxyUrl: string,
+  onProgress: (message: string) => void
+): Promise<AuditResults> {
+  onProgress('Initiating crawl through CORS proxy...');
+  
+  const response = await fetch(buildProxyFetchUrl(proxyUrl, targetUrl));
+  if (!response.ok) {
+    throw new Error(`Failed to crawl URL: ${response.status} ${response.statusText}`);
+  }
+
+  const finalUrl = response.headers.get('X-Final-Url') || targetUrl;
+  const htmlText = await response.text();
+  const htmlSize = htmlText.length;
+  
+  onProgress(`Crawl complete (${(htmlSize / 1024).toFixed(1)} KB). Parsing DOM...`);
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlText, 'text/html');
+
+  // 1. Audit Title
+  onProgress('Analyzing meta tags...');
+  const titleEl = doc.querySelector('title');
+  const titleText = titleEl ? titleEl.textContent?.trim() || '' : '';
+  const titleLength = titleText.length;
+  let titleStatus: TitleAudit['status'] = 'ok';
+  let titleMessage = 'Title tag is present and well-formed.';
+  
+  if (titleLength === 0) {
+    titleStatus = 'missing';
+    titleMessage = 'Title tag is missing or empty. Crucial for SEO!';
+  } else if (titleLength < 30) {
+    titleStatus = 'warning';
+    titleMessage = `Title is too short (${titleLength} chars). Aim for 50-60 characters.`;
+  } else if (titleLength > 60) {
+    titleStatus = 'warning';
+    titleMessage = `Title is too long (${titleLength} chars). Aim for 50-60 characters to avoid truncation.`;
+  }
+
+  const titleAudit: TitleAudit = { text: titleText, length: titleLength, status: titleStatus, message: titleMessage };
+
+  // 2. Audit Description
+  const descEl = doc.querySelector('meta[name="description"]');
+  const descText = descEl ? descEl.getAttribute('content')?.trim() || '' : '';
+  const descLength = descText.length;
+  let descStatus: DescriptionAudit['status'] = 'ok';
+  let descMessage = 'Meta description is present and well-proportioned.';
+
+  if (descLength === 0) {
+    descStatus = 'missing';
+    descMessage = 'Meta description tag is missing. Search engines may use random snippets instead.';
+  } else if (descLength < 110) {
+    descStatus = 'warning';
+    descMessage = `Description is too short (${descLength} chars). Aim for 150-160 characters.`;
+  } else if (descLength > 160) {
+    descStatus = 'warning';
+    descMessage = `Description is too long (${descLength} chars). Aim for 150-160 characters to avoid truncation.`;
+  }
+
+  const descriptionAudit: DescriptionAudit = { text: descText, length: descLength, status: descStatus, message: descMessage };
+
+  // 3. Audit Canonical
+  const canonicalEl = doc.querySelector('link[rel="canonical"]');
+  const canonicalUrl = canonicalEl ? canonicalEl.getAttribute('href') || '' : '';
+  let canonicalStatus: CanonicalAudit['status'] = 'ok';
+  let canonicalMessage = 'Canonical URL is set correctly.';
+
+  if (!canonicalUrl) {
+    canonicalStatus = 'missing';
+    canonicalMessage = 'Canonical link is missing. Risk of duplicate content issues.';
+  }
+
+  const canonicalAudit: CanonicalAudit = { url: canonicalUrl, status: canonicalStatus, message: canonicalMessage };
+
+  // 4. Audit Headings
+  onProgress('Auditing header structure...');
+  const h1Elements = Array.from(doc.querySelectorAll('h1')).map(el => el.textContent?.trim() || '');
+  const h2Elements = Array.from(doc.querySelectorAll('h2')).map(el => el.textContent?.trim() || '');
+  const h3Elements = Array.from(doc.querySelectorAll('h3')).map(el => el.textContent?.trim() || '');
+  const h4Elements = Array.from(doc.querySelectorAll('h4')).map(el => el.textContent?.trim() || '');
+  const h5Elements = Array.from(doc.querySelectorAll('h5')).map(el => el.textContent?.trim() || '');
+  const h6Elements = Array.from(doc.querySelectorAll('h6')).map(el => el.textContent?.trim() || '');
+
+  let headingsStatus: HeadingAudit['status'] = 'ok';
+  let headingsMessage = 'Heading structure is logical and contains exactly one H1.';
+
+  if (h1Elements.length === 0) {
+    headingsStatus = 'error';
+    headingsMessage = 'Missing H1 heading. Every page needs exactly one H1 to state its primary topic.';
+  } else if (h1Elements.length > 1) {
+    headingsStatus = 'warning';
+    headingsMessage = `Multiple H1 headings detected (${h1Elements.length}). It is recommended to have exactly one H1 per page.`;
+  }
+
+  const headingAudit: HeadingAudit = {
+    h1: h1Elements,
+    h2: h2Elements,
+    h3: h3Elements,
+    h4: h4Elements,
+    h5: h5Elements,
+    h6: h6Elements,
+    status: headingsStatus,
+    message: headingsMessage
+  };
+
+  // 5. Audit Image Alts
+  onProgress('Checking image alt attributes...');
+  const images = Array.from(doc.querySelectorAll('img'));
+  const totalImages = images.length;
+  const imageDetails: ImageAltDetail[] = [];
+  let missingAltCount = 0;
+
+  images.forEach(img => {
+    const src = img.getAttribute('src') || '';
+    const alt = img.getAttribute('alt');
+    const isMissing = alt === null || alt.trim() === '';
+    if (isMissing) missingAltCount++;
+    imageDetails.push({
+      src: normalizeUrl(src, finalUrl),
+      alt: alt || '',
+      isMissing
+    });
+  });
+
+  let imageAltsStatus: ImageAltsAudit['status'] = 'ok';
+  let imageAltsMessage = 'All images have alternative text attributes.';
+
+  if (missingAltCount > 0) {
+    imageAltsStatus = missingAltCount === totalImages ? 'error' : 'warning';
+    imageAltsMessage = `${missingAltCount} out of ${totalImages} images are missing alt attributes. Alt text is essential for screen readers and image search SEO.`;
+  }
+
+  const imageAltsAudit: ImageAltsAudit = {
+    total: totalImages,
+    missing: missingAltCount,
+    details: imageDetails,
+    status: imageAltsStatus,
+    message: imageAltsMessage
+  };
+
+  // 6. Audit OpenGraph & Socials
+  const ogTitle = doc.querySelector('meta[property="og:title"], meta[name="og:title"]')?.getAttribute('content') || '';
+  const ogDesc = doc.querySelector('meta[property="og:description"], meta[name="og:description"]')?.getAttribute('content') || '';
+  const ogImage = doc.querySelector('meta[property="og:image"], meta[name="og:image"]')?.getAttribute('content') || '';
+  const ogType = doc.querySelector('meta[property="og:type"], meta[name="og:type"]')?.getAttribute('content') || '';
+
+  const ogStatus: OpenGraphAudit['status'] = (ogTitle && ogDesc && ogImage) ? 'ok' : 'missing';
+  const ogMessage = ogStatus === 'ok' 
+    ? 'Open Graph meta tags are configured properly.' 
+    : 'Some key Open Graph tags (og:title, og:description, or og:image) are missing. Social shares will look plain.';
+
+  const openGraphAudit: OpenGraphAudit = {
+    title: ogTitle,
+    description: ogDesc,
+    image: ogImage ? normalizeUrl(ogImage, finalUrl) : '',
+    type: ogType,
+    status: ogStatus,
+    message: ogMessage
+  };
+
+  // 6b. Twitter Card Audit
+  const twitterCardTag = doc.querySelector('meta[name="twitter:card"]')?.getAttribute('content') || '';
+  const twitterTitle = doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content') || '';
+  const twitterDesc = doc.querySelector('meta[name="twitter:description"]')?.getAttribute('content') || '';
+  const twitterImage = doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content') || '';
+
+  const twitterStatus: TwitterCardAudit['status'] = (twitterCardTag && twitterTitle && twitterDesc) ? 'ok' : 'missing';
+  const twitterMessage = twitterStatus === 'ok'
+    ? 'Twitter Card meta tags are present.'
+    : 'Some key Twitter Card tags (twitter:card, twitter:title, or twitter:description) are missing.';
+
+  const twitterCardAudit: TwitterCardAudit = {
+    card: twitterCardTag,
+    title: twitterTitle,
+    description: twitterDesc,
+    image: twitterImage ? normalizeUrl(twitterImage, finalUrl) : '',
+    status: twitterStatus,
+    message: twitterMessage
+  };
+
+  // 6c. Content Metrics
+  const visibleText = getVisibleText(doc);
+  const words = visibleText.trim().split(/\s+/).filter(w => w.length > 0);
+  const wordCount = words.length;
+  const contentRatio = parseFloat(((visibleText.length / htmlSize) * 100).toFixed(1)) || 0;
+  const readingLevel = estimateReadingLevel(visibleText);
+  const language = doc.documentElement.getAttribute('lang') || 'unknown';
+
+  const contentMetrics: ContentMetrics = {
+    wordCount,
+    contentRatio,
+    readingLevel,
+    language
+  };
+
+  // 6d. Additional meta tags
+  const viewport = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') || '';
+  const charset = doc.querySelector('meta[charset]')?.getAttribute('charset') || 
+                  doc.querySelector('meta[http-equiv="content-type"]')?.getAttribute('content') || '';
+  const faviconEl = doc.querySelector('link[rel~="icon"], link[rel="shortcut icon"]');
+  const favicon = faviconEl ? normalizeUrl(faviconEl.getAttribute('href') || '', finalUrl) : '';
+  
+  const hreflangs = Array.from(doc.querySelectorAll('link[rel="alternate"][hreflang]')).map(el => ({
+    hreflang: el.getAttribute('hreflang') || '',
+    href: normalizeUrl(el.getAttribute('href') || '', finalUrl)
+  }));
+
+  // 7. Robots Meta Tag
+  const robotsText = doc.querySelector('meta[name="robots"]')?.getAttribute('content') || 'None detected (default: index, follow)';
+
+  // 8. Schema Structured Data
+  const schemaElements = Array.from(doc.querySelectorAll('script[type="application/ld+json"]'));
+  const schemaTypes: string[] = [];
+  const schemas: Array<{ type: string; code: string }> = [];
+
+  schemaElements.forEach(script => {
+    try {
+      const content = script.textContent || '';
+      if (!content.trim()) return;
+      const parsed = JSON.parse(content);
+      
+      const addSchema = (item: any) => {
+        const type = item['@type'];
+        if (type) {
+          schemaTypes.push(String(type));
+          schemas.push({
+            type: String(type),
+            code: JSON.stringify(item, null, 2)
+          });
+        }
+      };
+
+      if (Array.isArray(parsed)) {
+        parsed.forEach(addSchema);
+      } else if (parsed['@graph'] && Array.isArray(parsed['@graph'])) {
+        parsed['@graph'].forEach(addSchema);
+      } else {
+        addSchema(parsed);
+      }
+    } catch {
+      // Ignored malformed schema script tags
+    }
+  });
+
+  const onPageResults: OnPageSEOResults = {
+    title: titleAudit,
+    description: descriptionAudit,
+    headings: headingAudit,
+    canonical: canonicalAudit,
+    imageAlts: imageAltsAudit,
+    openGraph: openGraphAudit,
+    twitterCard: twitterCardAudit,
+    contentMetrics,
+    viewport,
+    charset,
+    favicon,
+    hreflangs,
+    robots: robotsText,
+    schemaTypes,
+    schemas,
+    htmlSize
+  };
+
+  // 9. Links collection (CORS validation runs separately or asynchronously)
+  onProgress('Collecting hyperlinks...');
+  const anchorTags = Array.from(doc.querySelectorAll('a'));
+  const linkItems: LinkItem[] = [];
+  const processedHrefs = new Set<string>();
+  let linkId = 0;
+
+  anchorTags.forEach(anchor => {
+    const rawHref = anchor.getAttribute('href');
+    if (!rawHref) return;
+
+    // Filter out anchors, mailto, tel, javascript links
+    if (rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:') || rawHref.startsWith('javascript:')) {
+      return;
+    }
+
+    const fullHref = normalizeUrl(rawHref, finalUrl);
+    
+    // De-duplicate links to avoid flooding status checkers
+    if (processedHrefs.has(fullHref)) return;
+    processedHrefs.add(fullHref);
+
+    let isExternal = false;
+    try {
+      const targetHost = new URL(fullHref).host;
+      const baseHost = new URL(finalUrl).host;
+      isExternal = targetHost !== baseHost;
+    } catch {
+      isExternal = true;
+    }
+
+    linkItems.push({
+      id: linkId++,
+      href: fullHref,
+      text: anchor.textContent?.trim() || '[Empty Anchor Link]',
+      isExternal,
+      isSecure: fullHref.startsWith('https:'),
+      status: null,
+      statusText: null,
+      statusState: 'pending',
+      rel: anchor.getAttribute('rel') || '',
+      responseTime: null,
+      redirectDestination: null
+    });
+  });
+
+  // Calculate Initial Numeric Score
+  let score = 100;
+  
+  if (titleAudit.status === 'missing') score -= 15;
+  else if (titleAudit.status === 'warning') score -= 5;
+
+  if (descriptionAudit.status === 'missing') score -= 12;
+  else if (descriptionAudit.status === 'warning') score -= 4;
+
+  if (canonicalAudit.status === 'missing') score -= 8;
+
+  if (headingAudit.status === 'error') score -= 10;
+  else if (headingAudit.status === 'warning') score -= 4;
+
+  if (imageAltsAudit.status === 'error') score -= 10;
+  else if (imageAltsAudit.status === 'warning') score -= 5;
+
+  if (openGraphAudit.status === 'missing') score -= 5;
+
+  if (schemaTypes.length === 0) score -= 3;
+
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    url: targetUrl,
+    timestamp: new Date().toISOString(),
+    onPage: onPageResults,
+    links: linkItems,
+    pageSpeedMobile: null,
+    pageSpeedDesktop: null,
+    score,
+    grade: calculateGrade(score)
+  };
+}
+
+/**
+ * Validates a list of links asynchronously in chunks through the CORS proxy
+ */
+export async function validateLinks(
+  links: LinkItem[],
+  proxyUrl: string,
+  onLinkUpdated: (link: LinkItem) => void,
+  onComplete: () => void
+): Promise<void> {
+  const CONCURRENCY = 4; // limit parallel connections
+  const queue = [...links];
+  let running = 0;
+
+  async function processNext() {
+    if (queue.length === 0) {
+      if (running === 0) {
+        onComplete();
+      }
+      return;
+    }
+
+    const link = queue.shift()!;
+    link.statusState = 'checking';
+    onLinkUpdated(link);
+    running++;
+
+    const startFetch = performance.now();
+    try {
+      const response = await fetch(buildProxyFetchUrl(proxyUrl, link.href), {
+        method: 'HEAD'
+      });
+      link.responseTime = Math.round(performance.now() - startFetch);
+      
+      const realStatus = parseInt(response.headers.get('X-Status-Code') || response.status.toString());
+      link.status = realStatus;
+      link.statusText = response.statusText;
+      link.statusState = (realStatus >= 200 && realStatus < 400) ? 'ok' : 'broken';
+
+      if (realStatus >= 300 && realStatus < 400) {
+        link.redirectDestination = response.headers.get('Location') || response.headers.get('X-Final-Url') || 'Redirected';
+      }
+    } catch {
+      try {
+        const startGet = performance.now();
+        const getResponse = await fetch(buildProxyFetchUrl(proxyUrl, link.href));
+        link.responseTime = Math.round(performance.now() - startGet);
+        
+        const realStatus = parseInt(getResponse.headers.get('X-Status-Code') || getResponse.status.toString());
+        link.status = realStatus;
+        link.statusText = getResponse.statusText;
+        link.statusState = (realStatus >= 200 && realStatus < 400) ? 'ok' : 'broken';
+
+        if (realStatus >= 300 && realStatus < 400) {
+          link.redirectDestination = getResponse.headers.get('Location') || getResponse.headers.get('X-Final-Url') || 'Redirected';
+        }
+      } catch (err: any) {
+        link.responseTime = Math.round(performance.now() - startFetch);
+        link.status = 500;
+        link.statusText = err.message || 'Fetch Failed';
+        link.statusState = 'broken';
+      }
+    }
+
+    onLinkUpdated(link);
+    running--;
+    processNext();
+  }
+
+  for (let i = 0; i < Math.min(CONCURRENCY, links.length); i++) {
+    processNext();
+  }
+}
+
+/**
+ * Fetches PageSpeed Insight metrics from Google API
+ */
+export async function fetchPageSpeed(
+  targetUrl: string,
+  strategy: 'mobile' | 'desktop',
+  apiKey?: string
+): Promise<PageSpeedMetric> {
+  let endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(targetUrl)}&category=performance&strategy=${strategy}`;
+  if (apiKey) {
+    endpoint += `&key=${apiKey}`;
+  }
+
+  const res = await fetch(endpoint);
+  if (!res.ok) {
+    let errMsg = `Status ${res.status} ${res.statusText}`;
+    try {
+      const errJson = await res.json();
+      if (errJson?.error?.message) {
+        errMsg = errJson.error.message;
+      }
+    } catch {
+      // ignore parse error
+    }
+    
+    if (res.status === 429) {
+      throw new Error(`PageSpeed API rate limit exceeded (429). Please provide an API Key in settings.`);
+    } else if (res.status === 400 && !apiKey) {
+      throw new Error(`PageSpeed API request failed (400). An API Key may be required for this domain.`);
+    }
+    throw new Error(`PageSpeed API error: ${errMsg}`);
+  }
+
+  const data = await res.json();
+  const lighthouse = data.lighthouseResult;
+  const perfCategory = lighthouse.categories.performance;
+  const score = Math.round((perfCategory.score || 0) * 100);
+
+  // Extract core performance vitals
+  const fcp = lighthouse.audits['first-contentful-paint']?.displayValue || 'N/A';
+  const lcp = lighthouse.audits['largest-contentful-paint']?.displayValue || 'N/A';
+  const cls = lighthouse.audits['cumulative-layout-shift']?.displayValue || 'N/A';
+  const speedIndex = lighthouse.audits['speed-index']?.displayValue || 'N/A';
+  
+  // Total Blocking Time
+  const tbt = lighthouse.audits['total-blocking-time']?.displayValue || 'N/A';
+  
+  // Time to First Byte (TTFB)
+  const ttfb = lighthouse.audits['server-response-time']?.displayValue || 'N/A';
+
+  const audits = lighthouse.audits;
+  
+  // Extract passed audits list
+  const passedAudits: string[] = [];
+  for (const id in audits) {
+    const audit = audits[id];
+    if (audit.score !== null && audit.score >= 0.9 && (audit.details?.type === 'opportunity' || id.includes('minify') || id.includes('optimize') || id.includes('responsive'))) {
+      passedAudits.push(audit.title);
+    }
+  }
+
+  // Extract key failing recommendations
+  const recommendations: PageSpeedMetric['recommendations'] = [];
+  for (const id in audits) {
+    const audit = audits[id];
+    if (audit.score !== null && audit.score < 0.9 && (audit.details?.type === 'opportunity' || audit.details?.type === 'critical-opportunity' || id.includes('unused') || id.includes('render-blocking'))) {
+      recommendations.push({
+        title: audit.title,
+        description: audit.description,
+        displayValue: audit.displayValue || '',
+        impact: audit.details?.overallSavingsMs || audit.numericValue || 0
+      });
+    }
+  }
+
+  // Sort recommendations by impact descending
+  recommendations.sort((a, b) => (b.impact || 0) - (a.impact || 0));
+
+  return {
+    score,
+    lcp,
+    fid: tbt, // use total blocking time as key delay indicator
+    cls,
+    fcp,
+    speedIndex,
+    ttfb,
+    passedAudits: passedAudits.slice(0, 15),
+    recommendations: recommendations.slice(0, 10)
+  };
+}
