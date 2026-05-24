@@ -1,0 +1,32 @@
+# robots.txt for selectseo.in
+
+# Allow standard search engines
+User-agent: *
+Disallow:
+
+# Allow OpenAI Search/Citation Bot
+User-agent: OAI-SearchBot
+Disallow:
+
+# Allow ChatGPT User Context Crawler
+User-agent: ChatGPT-User
+Disallow:
+
+# Allow Perplexity Search/Citation Bot
+User-agent: PerplexityBot
+Disallow:
+
+# Allow Anthropic Search/Citation Bot
+User-agent: Claude-SearchBot
+Disallow:
+
+# Allow Claude User Context Crawler
+User-agent: Claude-User
+Disallow:
+
+# Allow Applebot-Extended
+User-agent: Applebot-Extended
+Disallow:
+
+# Point to Sitemap
+Sitemap: https://selectseo.in/sitemap.xml

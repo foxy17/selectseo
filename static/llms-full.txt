@@ -1,0 +1,101 @@
+# SelectSEO Auditor: Comprehensive Documentation
+
+This document serves as the full specification, user guide, technical design system, and reference documentation for the SelectSEO Auditor project. It is structured for ingestion by Large Language Models (LLMs) and AI agents.
+
+---
+
+## 1. Overview & Mechanics
+
+SelectSEO Auditor is a local-first, developer-focused SEO analysis suite built for performance, privacy, and precision. It runs entirely inside the client browser.
+
+### Key Workflows:
+1. **Configure CORS Proxy**: Browsers block cross-origin requests by default due to CORS policies. To bypass this, SelectSEO Auditor sends target crawl requests through a CORS proxy worker (like `https://corsproxy.io/?url=`).
+2. **Crawl & Parse**: Once HTML is obtained, it parses:
+   - On-Page tags (`title`, `meta description`, `canonical link`, `open graph` elements).
+   - Heading outlines (`H1`, `H2`, `H3`, etc.).
+   - Images (`src`, `alt` attributes, checking for missing descriptors).
+   - Hyperlinks (extracts URLs and anchors).
+3. **Asynchronous Outbound Link Checking**: It sends requests to validate all extracted hyperlinks to detect broken anchors/links (404s, etc.).
+4. **Google PageSpeed Insights Integration**: In the background, it fetches desktop and mobile performance reports using the user's Google API Key.
+5. **Virtual SQL Engine (SQLite)**: Formats scanned results into internal tables, letting developers query data with standard SQL.
+6. **Local Storage Persistence**: All settings (proxy endpoints, Google API keys) are stored in the user's browser sandbox, ensuring absolute privacy.
+
+---
+
+## 2. Page Outlines & User Guides
+
+### 2.1. What This Does
+SelectSEO Auditor is built around four main pillars:
+- **Client-Side Crawling**: Your crawled raw HTML never touches our servers. Scrapes and parses page HTML tags, titles, headings, and images directly in your browser.
+- **SQL-Based Auditing**: Compiles all crawled link maps, image lists, and HTML structural hierarchies into an in-memory SQL database.
+- **PageSpeed Core Vitals**: Connects directly to Google's PageSpeed Insights API to pull real-time lighthouse scores for performance, accessibility, SEO, and best practices.
+- **Privacy-First Design**: Serverless architecture ensures zero tracking or data retention.
+
+### 2.2. How To Use
+1. **Configure the Proxy**: Configure the CORS proxy worker URL (e.g. `corsproxy.io`) to allow the browser to crawl cross-origin target sites.
+2. **Scan a Target URL**: Input a target domain (e.g., `svelte.dev`) and click **Scan Target**. Follow the live audit logs stream on the console panel.
+3. **Analyze Audit Checklist**: Review page layout structures, meta tags, and outbound hyperlink status codes on the generated results dashboard.
+4. **Query via SQL Console**: Scroll down to the SQL Console and write custom query statements. Example: `SELECT url, anchor_text FROM links WHERE status_code = 404`.
+
+### 2.3. FAQs
+- **Why does it require a CORS proxy?**
+  Web browsers enforce CORS (Cross-Origin Resource Sharing) safety policies, which prevent websites from requesting files from other domains directly. A CORS proxy forwards the request, allowing our client-side engine to scrape page HTML and validate outgoing links.
+- **How does the Client SQL Console work?**
+  Once a target site is audited, all data (headings, images, links, and PageSpeed metrics) is parsed and inserted into a virtual relational database schema inside the browser. You can execute SQL queries to filter or extract exactly the information you need.
+- **Is my scanned data private and secure?**
+  Yes. SelectSEO has no backend server or database storage. Your scanned URLs, API credentials, and query outputs are kept local to your browser sandbox and are never shared or logged.
+- **What SQL database schema is exposed?**
+  We compile data into multiple virtual tables: `metadata` (name, value), `headings` (level, text), `images` (src, alt, status), and `links` (url, anchor_text, type, status_code).
+
+---
+
+## 3. Database Schema Reference
+
+The client-side virtual database exposes the following schemas:
+
+### Table: `metadata`
+| Column | Type | Description |
+|---|---|---|
+| `name` | TEXT | Name of metadata property (e.g. `title`, `description`, `canonical`) |
+| `content` | TEXT | Extracted content string |
+| `status` | TEXT | Audit health status (`ok`, `warning`, `error`, `missing`) |
+
+### Table: `headings`
+| Column | Type | Description |
+|---|---|---|
+| `tag` | TEXT | Heading tag name (`h1`, `h2`, `h3`, `h4`, `h5`, `h6`) |
+| `text` | TEXT | Text node value of heading |
+
+### Table: `images`
+| Column | Type | Description |
+|---|---|---|
+| `src` | TEXT | Image URL source |
+| `alt` | TEXT | Alternative text attribute value |
+| `is_missing` | INTEGER | `1` if alt attribute is empty/missing, `0` if present |
+
+### Table: `links`
+| Column | Type | Description |
+|---|---|---|
+| `href` | TEXT | Hyperlink URL |
+| `text` | TEXT | Anchor text description |
+| `type` | TEXT | Link type (`internal` or `external`) |
+| `status_code` | INTEGER | Crawled HTTP response status (e.g. `200`, `404`) |
+| `status_state` | TEXT | Validation state (`ok`, `broken`, `pending`) |
+
+---
+
+## 4. UI Design System & Aesthetic Guidelines
+
+SelectSEO's marketing surface uses a high-contrast developer aesthetic:
+- **Base Canvas**: Near-pure black (`#0a0a0a`) with white typography. No light-mode exists.
+- **Brand Accent**: Electric yellow (`#faff69`) as the primary voltage. Used on primary CTAs, stat-callout numbers, and full-bleed emphasis cards.
+- **Typography**: Inter for display headings (weight 700 with negative letter-spacing `-1px` to `-2.5px`), Inter for body text (weight 400), JetBrains Mono for code blocks.
+- **Surfaces**: Dark cards (`#1a1a1a`) with a thin border (`#2a2a2a`) house features and SQL editors.
+- **Borders & Radii**: Hierarchy values are:
+  - `4px` (xs) for badge accents.
+  - `8px` (md) for buttons and inputs.
+  - `12px` (lg) for content and mockup containers.
+- **Responsive Layouts**:
+  - Desktop (>1024px): 3-column feature grids, full top navigation.
+  - Tablet (768px - 1024px): 2-column feature grids.
+  - Mobile (<768px): Hamburger nav; display headers collapse from 72px to 36px; grids stack 1-column vertically.

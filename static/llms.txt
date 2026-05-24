@@ -1,0 +1,18 @@
+# SelectSEO Auditor
+
+> High-performance, developer-first, and local-first SEO scanner and auditing dashboard running entirely in your browser.
+
+## Key Features
+
+- **Client-Side Scraper & Crawling**: Audit metadata tags, heading structure, images, and outbound links directly from the browser using a CORS proxy.
+- **SQLite Console**: Run client-side SQL queries on virtual tables compiled from scanned results (`headings`, `links`, `images`, `metadata`).
+- **PageSpeed Vitals**: Seamlessly integrates Google's PageSpeed Insights API for real-time mobile and desktop lighthouse scores.
+- **Privacy First**: Fully serverless architecture with localstorage settings storage; API credentials and crawled data never leave your sandbox.
+
+## Resources
+
+- [Home Page](https://selectseo.in/): The main scanner interface, terminal logs, and results overview panels.
+- [What This Does](https://selectseo.in/what-this-does/): Summary of product mechanics, crawling architectures, privacy stance, and SQL-based auditing.
+- [How To Use](https://selectseo.in/how-to-use/): Step-by-step developer guide on proxy setups, initiating scans, auditing checklists, and query execution.
+- [FAQ](https://selectseo.in/faq/): Technical answers about CORS proxy requirements, local SQLite architecture, privacy policies, and exposed schemas.
+- [Full Text Doc](https://selectseo.in/llms-full.txt): Comprehensive technical specifications, design system tokens, and full documentation for LLMs.
