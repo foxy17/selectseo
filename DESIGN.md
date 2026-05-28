@@ -127,7 +127,7 @@ rounded:
   md: 8px
   lg: 12px
   pill: 9999px
-  full: 9999px
+  full: 50% # circle radius for square elements (icon buttons, spinners); pill covers stadium/pill shapes
 
 spacing:
   xxs: 4px
@@ -266,7 +266,7 @@ components:
   badge-yellow:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
-    typography: "{typography.caption-uppercase}"
+    typography: "{typography.caption-uppercase}" # intentional override: 11px / letterSpacing 1px (tighter than the 12px / 1.5px base) for the compact yellow badge
     rounded: "{rounded.pill}"
     padding: 4px 12px
   events-card:
@@ -412,7 +412,7 @@ The system uses no drop shadows. Depth comes from the contrast between black can
 | `{rounded.md}` | 8px | Standard CTA buttons, text inputs |
 | `{rounded.lg}` | 12px | Content cards, code-window cards, pricing tiers |
 | `{rounded.pill}` | 9999px | Badge pills |
-| `{rounded.full}` | 9999px / 50% | Avatars, icon buttons |
+| `{rounded.full}` | 50% | Circular elements — avatars, icon buttons, spinners (use `{rounded.pill}` for stadium/pill shapes) |
 
 ## Components
 
@@ -466,7 +466,7 @@ The system uses no drop shadows. Depth comes from the contrast between black can
 
 **`badge-pill`** — Small dark pill label. Background `{colors.surface-card}`, text `{colors.on-dark}`, type `{typography.caption}`, rounded `{rounded.pill}`.
 
-**`badge-yellow`** — Yellow pill for "NEW", "GET STARTED" emphasis. Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.caption-uppercase}`, rounded `{rounded.pill}`.
+**`badge-yellow`** — Yellow pill for "NEW", "GET STARTED" emphasis. Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.caption-uppercase}` (intentional override: rendered at 11px / letterSpacing 1px — slightly tighter than the 12px / 1.5px base — to keep the compact badge dense), rounded `{rounded.pill}`.
 
 ### Tab / Filter
 
