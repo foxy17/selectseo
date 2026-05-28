@@ -60,6 +60,7 @@
   // `{:else if auditResults}` branch). They are read-only mirrors of `crawl.*`.
   const auditResults = $derived(crawl.auditResults);
   const isScanning = $derived(crawl.isScanning);
+  const crawlError = $derived(crawl.error);
   const isValidatingLinks = $derived(crawl.isValidatingLinks);
   const scanLogs = $derived(crawl.scanLogs);
   const checkedLinksCount = $derived(crawl.checkedLinksCount);
@@ -199,6 +200,34 @@
             onsave={() => crawl.log('Settings updated and stored locally.')}
           />
         </div>
+      </div>
+    </section>
+  {:else if crawlError && !auditResults}
+    <!-- Crawl Failure State: surfaces the error + captured logs so the user is
+         never left on a blank page, with a one-click retry. -->
+    <section class="error-wrapper container mt-4">
+      <div class="error-header font-mono text-center">
+        <h2 class="title-md text-error">// TARGET_CRAWL_FAILED</h2>
+        <p class="text-muted text-xs mt-1">The audit could not be completed. Review the error and the captured log stream below, then retry.</p>
+        <p class="monotext text-ink text-sm mt-2">{currentUrl}</p>
+      </div>
+
+      <div class="error-grid mt-4">
+        <div class="card-dark error-card">
+          <span class="error-card-label font-mono">ERROR</span>
+          <p class="error-message monotext">{crawlError}</p>
+          <button class="btn-recrawl font-mono mt-2" onclick={() => crawl.recrawl()}>
+            🔄 Try Again
+          </button>
+        </div>
+
+        <!-- Persist the captured logs so the failure context survives. -->
+        <ConsoleHud
+          logs={scanLogs}
+          title="AUDIT_LOG_STREAM // {currentUrl}"
+          emptyText="no log output captured."
+          viewportHeight={280}
+        />
       </div>
     </section>
   {:else if auditResults}
@@ -379,6 +408,45 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+  }
+
+  /* Crawl failure state */
+  .error-wrapper {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--spacing-xl) 0;
+  }
+
+  .error-header h2 {
+    font-size: 18px;
+    letter-spacing: 0.5px;
+  }
+
+  .error-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .error-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-lg);
+    border: 1px solid var(--color-error);
+  }
+
+  .error-card-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--color-error);
+  }
+
+  .error-message {
+    font-size: 13px;
+    color: var(--color-ink);
+    word-break: break-word;
   }
 
   .flex-row {
