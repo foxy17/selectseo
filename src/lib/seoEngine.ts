@@ -211,7 +211,7 @@ function estimateReadingLevel(text: string): string {
   const sentenceCount = Math.max(1, sentences.length);
   let syllableCount = 0;
   words.forEach(word => {
-    let cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
+    const cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
     if (cleanWord.length <= 3) {
       syllableCount += 1;
       return;
@@ -633,7 +633,7 @@ export async function runSEOAudit(
     if (processedHrefs.has(fullHref)) return;
     processedHrefs.add(fullHref);
 
-    let isExternal = false;
+    let isExternal: boolean;
     try {
       const targetHost = new URL(fullHref).host;
       const baseHost = new URL(finalUrl).host;
