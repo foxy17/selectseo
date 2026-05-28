@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { runSEOAudit, validateLinks, fetchPageSpeed, calculateGrade, summarizeAudit, recalculateOverallScore as computeOverallScore } from '$lib/seoEngine';
-  import type { AuditResults, LinkItem, PageSpeedMetric } from '$lib/seoEngine';
+  import { summarizeAudit } from '$lib/seoEngine';
   import { executeSQLQuery, initSqlEngine } from '$lib/sqlEngine';
   import type { SQLQueryResult } from '$lib/sqlEngine';
   import { exportSEOReport } from '$lib/pdfExporter';
@@ -16,12 +15,10 @@
   import ConsoleHud from '$lib/components/ConsoleHud.svelte';
   import AuditSettings from '$lib/components/AuditSettings.svelte';
   import { settings } from '$lib/settings.svelte';
-  import { loadHistory, upsert } from '$lib/crawlHistory';
-  import type { CrawlHistoryItem } from '$lib/crawlHistory';
+  import { createCrawlController } from '$lib/crawlController.svelte';
   import { downloadFile, toCsv } from '$lib/exportUtils';
   import { appState } from '$lib/sharedState.svelte';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
 
   // Get raw target URL from params + query search
   const rawUrl = $derived(page.params.url + page.url.search + page.url.hash);
@@ -38,60 +35,50 @@
   // Derived normalized target URL (no state mutation inside effects).
   const currentUrl = $derived(rawUrl ? normalizeUrl(rawUrl) : '');
 
-  let isScanning = $state(false);
-  let scanLogs = $state<string[]>([]);
-  let auditResults = $state<AuditResults | null>(null);
-
-  // Crawl cancellation token: identifies the latest in-flight crawl so that
-  // async callbacks from a superseded crawl can be discarded.
-  let crawlGeneration = 0;
-  let currentAbort: AbortController | null = null;
-
-  // Link checking state
-  let isValidatingLinks = $state(false);
-  let checkedLinksCount = $state(0);
-  let totalLinksCount = $state(0);
+  // Crawl orchestration lives in a reusable, per-page controller. The page is a
+  // thin consumer: it reads reactive crawl state via `crawl.*` getters and wires
+  // in two page-only hooks for the SQL console (which the controller doesn't own):
+  //  - onResultsReady: rebuild the in-memory SQL DB once fresh/cached results land
+  //  - onLinksComplete: re-run the SQL query once after link validation, when the
+  //    SQL tab is active (preserving the original debounced behavior).
+  const crawl = createCrawlController({
+    onResultsReady: () => {
+      sqlResult = null;
+      sqlError = '';
+      runSQLQuery();
+    },
+    onLinksComplete: () => {
+      if (activeTab === 'sql') runSQLQuery();
+    }
+  });
 
   // Tabs state
   let activeTab = $state('overview'); // overview, ai-discoverability, ai-chat, onpage, links, pagespeed, sql
+
+  // Local reactive aliases over the controller's state. These keep the template
+  // identical to before (and let Svelte narrow `auditResults` inside the
+  // `{:else if auditResults}` branch). They are read-only mirrors of `crawl.*`.
+  const auditResults = $derived(crawl.auditResults);
+  const isScanning = $derived(crawl.isScanning);
+  const isValidatingLinks = $derived(crawl.isValidatingLinks);
+  const scanLogs = $derived(crawl.scanLogs);
+  const checkedLinksCount = $derived(crawl.checkedLinksCount);
+  const totalLinksCount = $derived(crawl.totalLinksCount);
+  const isFetchingMobileSpeed = $derived(crawl.isFetchingMobileSpeed);
+  const isFetchingDesktopSpeed = $derived(crawl.isFetchingDesktopSpeed);
+  const pageSpeedMobileError = $derived(crawl.pageSpeedMobileError);
+  const pageSpeedDesktopError = $derived(crawl.pageSpeedDesktopError);
 
   // Update layout shared state reactively
   $effect(() => {
     appState.hasResults = !!auditResults;
   });
 
-  // Log message logger
-  function log(message: string) {
-    const timestamp = new Date().toLocaleTimeString();
-    scanLogs = [...scanLogs, `[${timestamp}] ${message}`];
-  }
-
-  // Caching & History logic
-  function saveCrawlToHistory() {
-    const results = auditResults;
-    if (!results) return;
-
-    // Single source of truth for counts (shared with the on-screen metrics).
-    const summary = summarizeAudit(results);
-
-    const historyItem: CrawlHistoryItem = {
-      url: results.url,
-      timestamp: results.timestamp || new Date().toISOString(),
-      score: results.score,
-      grade: results.grade,
-      errorCount: summary.errorCount,
-      warningCount: summary.warningCount,
-      results: $state.snapshot(results)
-    };
-
-    upsert(historyItem);
-  }
-
   // Settings & Crawl Initialization
   onMount(() => {
     initSqlEngine().catch(err => {
       console.error('Failed to load SQL engine:', err);
-      log(`[ERROR] SQL Engine failure: ${err.message || err}`);
+      crawl.log(`[ERROR] SQL Engine failure: ${err.message || err}`);
     });
 
     settings.load();
@@ -99,184 +86,13 @@
 
   // Reactive crawl trigger when the normalized target URL changes.
   // Only `currentUrl` is tracked; the crawl itself runs untracked so that
-  // reactive reads inside checkCacheAndCrawl/runFreshScan don't re-trigger it.
-  let lastCrawledUrl = '';
+  // reactive reads inside the controller don't re-trigger it. The same-url
+  // de-bounce guard now lives inside `crawl.start`.
   $effect(() => {
     const url = currentUrl;
     if (!url) return;
-    untrack(() => {
-      if (lastCrawledUrl === url) return;
-      lastCrawledUrl = url;
-      void checkCacheAndCrawl(url);
-    });
+    untrack(() => crawl.start(url));
   });
-
-  async function checkCacheAndCrawl(url: string, forceRecrawl = false) {
-    // Begin a new crawl: bump generation and abort any prior in-flight work
-    // so superseded async callbacks can be discarded.
-    const myGen = ++crawlGeneration;
-    currentAbort?.abort();
-    currentAbort = new AbortController();
-
-    isScanning = true;
-    auditResults = null;
-    scanLogs = [];
-    sqlResult = null;
-    sqlError = '';
-    checkedLinksCount = 0;
-    totalLinksCount = 0;
-
-    const history = loadHistory();
-    const cachedItem = history.find(item => item.url === url);
-
-    if (cachedItem && !forceRecrawl) {
-      log(`Cache hit: loading cached crawl report for ${url}`);
-      // Deep clone to ensure reactivity binds cleanly
-      auditResults = JSON.parse(JSON.stringify(cachedItem.results));
-      runSQLQuery();
-      isScanning = false;
-
-      // Auto query Core Web Vitals in background if they are missing
-      if (auditResults && !auditResults.pageSpeedMobile && !auditResults.pageSpeedDesktop) {
-        triggerPageSpeedAudits(url, myGen);
-      }
-      return;
-    }
-
-    log(`Cache miss. Executing new audit crawl for target: ${url}`);
-    await runFreshScan(url, myGen);
-  }
-
-  // Primary Crawling Execution
-  async function runFreshScan(urlToScan: string, myGen: number) {
-    // checkCacheAndCrawl always creates a fresh controller before delegating here.
-    const abortSignal = currentAbort?.signal;
-    try {
-      // 1. Crawl & Run On-Page Audit
-      const results = await runSEOAudit(urlToScan, settings.effectiveProxyUrl, (msg) => log(msg));
-      if (myGen !== crawlGeneration) return; // superseded by a newer crawl
-      auditResults = results;
-
-      // Auto query default SQL console values
-      runSQLQuery();
-      saveCrawlToHistory();
-
-      // 2. Validate Hyperlinks Asynchronously
-      totalLinksCount = results.links.length;
-      if (totalLinksCount > 0) {
-        log(`Found ${totalLinksCount} unique links to check. Starting validation...`);
-        isValidatingLinks = true;
-
-        validateLinks(
-          results.links,
-          settings.effectiveProxyUrl,
-          (updatedLink) => {
-            if (myGen !== crawlGeneration) return; // discard stale link result
-            if (auditResults) {
-              const idx = auditResults.links.findIndex(l => l.id === updatedLink.id);
-              if (idx !== -1) {
-                auditResults.links[idx] = updatedLink;
-              }
-              checkedLinksCount = auditResults.links.filter(l => l.statusState !== 'pending' && l.statusState !== 'checking').length;
-            }
-          },
-          () => {
-            if (myGen !== crawlGeneration) return; // crawl superseded; ignore
-            isValidatingLinks = false;
-            log('Link checking completed.');
-            recalculateOverallScore();
-            saveCrawlToHistory();
-            // Debounced SQL re-query: rebuild the in-memory DB once, after all
-            // link results are in, instead of on every per-link update.
-            if (activeTab === 'sql') runSQLQuery();
-          },
-          abortSignal
-        );
-      } else {
-        log('No links found to validate.');
-      }
-
-      // 3. PageSpeed Audits (Automatically run in background)
-      triggerPageSpeedAudits(urlToScan, myGen);
-
-      log('SEO core analysis complete.');
-
-    } catch (err: any) {
-      if (myGen !== crawlGeneration) return; // superseded; suppress stale error
-      log(`[ERROR] Audit aborted: ${err.message}`);
-      console.error(err);
-    } finally {
-      if (myGen === crawlGeneration) isScanning = false;
-    }
-  }
-
-  // PageSpeed background updates.
-  // `myGen` ties this run to a specific crawl; stale results are discarded.
-  // Defaults to the current generation for direct (manual) invocations from
-  // the PageSpeed tab.
-  async function triggerPageSpeedAudits(url: string, myGen: number = crawlGeneration) {
-    isFetchingDesktopSpeed = true;
-    pageSpeedDesktopError = '';
-    log('Requesting Google PageSpeed Desktop report...');
-    try {
-      const desktopStats = await fetchPageSpeed(url, 'desktop', settings.apiKey);
-      if (myGen !== crawlGeneration) return; // superseded; discard stale result
-      if (auditResults) {
-        auditResults.pageSpeedDesktop = desktopStats;
-        log(`PageSpeed Desktop completed: Score ${desktopStats.score}/100`);
-      }
-    } catch (err: any) {
-      if (myGen !== crawlGeneration) return;
-      pageSpeedDesktopError = err.message || 'Failed';
-      log(`[WARN] PageSpeed Desktop audit failed: ${pageSpeedDesktopError}`);
-    } finally {
-      if (myGen === crawlGeneration) {
-        isFetchingDesktopSpeed = false;
-        saveCrawlToHistory();
-      }
-    }
-
-    if (myGen !== crawlGeneration) return; // crawl superseded between phases
-
-    isFetchingMobileSpeed = true;
-    pageSpeedMobileError = '';
-    log('Requesting Google PageSpeed Mobile report...');
-    try {
-      const mobileStats = await fetchPageSpeed(url, 'mobile', settings.apiKey);
-      if (myGen !== crawlGeneration) return; // superseded; discard stale result
-      if (auditResults) {
-        auditResults.pageSpeedMobile = mobileStats;
-        log(`PageSpeed Mobile completed: Score ${mobileStats.score}/100`);
-      }
-    } catch (err: any) {
-      if (myGen !== crawlGeneration) return;
-      pageSpeedMobileError = err.message || 'Failed';
-      log(`[WARN] PageSpeed Mobile audit failed: ${pageSpeedMobileError}`);
-    } finally {
-      if (myGen === crawlGeneration) {
-        isFetchingMobileSpeed = false;
-        saveCrawlToHistory();
-      }
-    }
-
-    if (myGen !== crawlGeneration) return;
-    recalculateOverallScore();
-    saveCrawlToHistory();
-  }
-
-  // Score recalculations. The math lives in the (pure) engine fn; the mutation
-  // of reactive state stays here in the component.
-  function recalculateOverallScore() {
-    if (!auditResults) return;
-    auditResults.score = computeOverallScore(auditResults);
-    auditResults.grade = calculateGrade(auditResults.score);
-  }
-
-  // PageSpeed states
-  let isFetchingMobileSpeed = $state(false);
-  let isFetchingDesktopSpeed = $state(false);
-  let pageSpeedMobileError = $state('');
-  let pageSpeedDesktopError = $state('');
 
   // SQL Console state
   let sqlQuery = $state('SELECT href, text, type FROM links WHERE status != 200');
@@ -291,9 +107,10 @@
   ];
 
   function runSQLQuery() {
-    if (!auditResults) return;
+    const results = crawl.auditResults;
+    if (!results) return;
     sqlError = '';
-    const res = executeSQLQuery(sqlQuery, auditResults);
+    const res = executeSQLQuery(sqlQuery, results);
     if (res.error) {
       sqlError = res.error;
       sqlResult = null;
@@ -320,10 +137,11 @@
   }
 
   function handlePDFExport() {
-    if (!auditResults) return;
-    log('Generating branded PDF report...');
-    exportSEOReport(auditResults);
-    log('PDF Report downloaded.');
+    const results = crawl.auditResults;
+    if (!results) return;
+    crawl.log('Generating branded PDF report...');
+    exportSEOReport(results);
+    crawl.log('PDF Report downloaded.');
   }
 
   function jumpToSection(tabName: string, elementSelector?: string) {
@@ -378,7 +196,7 @@
             title="Crawl Configurations (Active)"
             intro="Adjust configurations below if you need to rerun or modify the proxy parameters."
             saveLabel="Update settings"
-            onsave={() => log('Settings updated and stored locally.')}
+            onsave={() => crawl.log('Settings updated and stored locally.')}
           />
         </div>
       </div>
@@ -416,7 +234,7 @@
               <p>Target: <span class="monotext">{auditResults.url}</span></p>
               <div class="flex-row mt-1">
                 <span class="scan-time">Checked: {new Date(auditResults.timestamp).toLocaleTimeString()}</span>
-                <button class="btn-recrawl font-mono" onclick={() => checkCacheAndCrawl(currentUrl, true)}>
+                <button class="btn-recrawl font-mono" onclick={() => crawl.recrawl()}>
                   🔄 Recrawl
                 </button>
               </div>
@@ -506,13 +324,13 @@
         <!-- TAB CONTENT: PAGESPEED -->
         {#if activeTab === 'pagespeed'}
           <div class="tab-content" id="pagespeed-content">
-            <PageSpeedTab 
+            <PageSpeedTab
               {auditResults}
               {isFetchingMobileSpeed}
               {isFetchingDesktopSpeed}
               {pageSpeedMobileError}
               {pageSpeedDesktopError}
-              {triggerPageSpeedAudits}
+              triggerPageSpeedAudits={crawl.triggerPageSpeedAudits}
             />
           </div>
         {/if}
