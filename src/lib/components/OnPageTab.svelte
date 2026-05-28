@@ -1,21 +1,34 @@
 <script lang="ts">
   import type { AuditResults } from '$lib/seoEngine';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
+  import Collapsible from '$lib/components/Collapsible.svelte';
 
   let { auditResults }: { auditResults: AuditResults } = $props();
 
   // SERP Mobile vs Desktop toggle state
   let serpMode = $state<'desktop' | 'mobile'>('desktop');
-  
+
   // Active social preview tab
   let socialMode = $state<'facebook' | 'twitter'>('facebook');
 
-  // Expanded state for schema cards
-  let expandedSchemas = $state<Record<number, boolean>>({});
+  // Heading levels for the outline tree (H2..H6; H1 has a missing-state special case).
+  const headingLevels = $derived([
+    { level: 2, items: auditResults.onPage.headings.h2 },
+    { level: 3, items: auditResults.onPage.headings.h3 },
+    { level: 4, items: auditResults.onPage.headings.h4 },
+    { level: 5, items: auditResults.onPage.headings.h5 },
+    { level: 6, items: auditResults.onPage.headings.h6 }
+  ]);
 
-  function toggleSchema(index: number) {
-    expandedSchemas[index] = !expandedSchemas[index];
-  }
+  // Normalized schema list: prefer parsed `schemas`, otherwise synthesize from `schemaTypes`.
+  const schemaItems = $derived(
+    auditResults.onPage.schemas && auditResults.onPage.schemas.length > 0
+      ? auditResults.onPage.schemas
+      : auditResults.onPage.schemaTypes.map((type) => ({
+          type,
+          code: JSON.stringify({ '@context': 'https://schema.org', '@type': type }, null, 2)
+        }))
+  );
 
   // Get domain name for previews
   const domainName = $derived.by(() => {
@@ -211,7 +224,7 @@
     {/if}
 
     <div class="headings-tree mt-2">
-      <!-- H1 Section -->
+      <!-- H1 Section (special missing-state handling) -->
       {#if auditResults.onPage.headings.h1.length > 0}
         {#each auditResults.onPage.headings.h1 as h1}
           <div class="tree-node depth-1">
@@ -227,49 +240,15 @@
         </div>
       {/if}
 
-      <!-- H2 Section -->
-      {#each auditResults.onPage.headings.h2 as h2}
-        <div class="tree-node depth-2">
-          <span class="tag-badge h2-badge">H2</span>
-          <span class="node-text">{h2}</span>
-          <span class="node-length font-mono">{h2.length} ch</span>
-        </div>
-      {/each}
-
-      <!-- H3 Section -->
-      {#each auditResults.onPage.headings.h3 as h3}
-        <div class="tree-node depth-3">
-          <span class="tag-badge h3-badge">H3</span>
-          <span class="node-text">{h3}</span>
-          <span class="node-length font-mono">{h3.length} ch</span>
-        </div>
-      {/each}
-
-      <!-- H4 Section -->
-      {#each auditResults.onPage.headings.h4 as h4}
-        <div class="tree-node depth-4">
-          <span class="tag-badge h4-badge">H4</span>
-          <span class="node-text">{h4}</span>
-          <span class="node-length font-mono">{h4.length} ch</span>
-        </div>
-      {/each}
-
-      <!-- H5 Section -->
-      {#each auditResults.onPage.headings.h5 as h5}
-        <div class="tree-node depth-5">
-          <span class="tag-badge h5-badge">H5</span>
-          <span class="node-text">{h5}</span>
-          <span class="node-length font-mono">{h5.length} ch</span>
-        </div>
-      {/each}
-
-      <!-- H6 Section -->
-      {#each auditResults.onPage.headings.h6 as h6}
-        <div class="tree-node depth-6">
-          <span class="tag-badge h6-badge">H6</span>
-          <span class="node-text">{h6}</span>
-          <span class="node-length font-mono">{h6.length} ch</span>
-        </div>
+      <!-- H2..H6 Sections -->
+      {#each headingLevels as { level, items }}
+        {#each items as text}
+          <div class="tree-node depth-{level}">
+            <span class="tag-badge h{level}-badge">H{level}</span>
+            <span class="node-text">{text}</span>
+            <span class="node-length font-mono">{text.length} ch</span>
+          </div>
+        {/each}
       {/each}
     </div>
   </div>
@@ -367,43 +346,19 @@
       </div>
     {:else}
       <div class="schema-cards-container mt-2">
-        {#if auditResults.onPage.schemas && auditResults.onPage.schemas.length > 0}
-          {#each auditResults.onPage.schemas as schema, idx}
-            <div class="schema-collapsible-card">
-              <button class="schema-header-btn" onclick={() => toggleSchema(idx)}>
-                <div class="schema-title-wrap">
-                  <span class="schema-type-title font-mono text-primary">{schema.type}</span>
-                </div>
-                <span class="schema-rich-badge">Eligible for Rich Results</span>
-                <span class="expand-arrow">{expandedSchemas[idx] ? '▲' : '▼'}</span>
-              </button>
-              
-              {#if expandedSchemas[idx]}
-                <div class="schema-json-body font-mono">
-                  <pre class="raw-json"><code>{schema.code}</code></pre>
-                </div>
-              {/if}
-            </div>
-          {/each}
-        {:else}
-          {#each auditResults.onPage.schemaTypes as type, idx}
-            <div class="schema-collapsible-card">
-              <button class="schema-header-btn" onclick={() => toggleSchema(idx)}>
-                <div class="schema-title-wrap">
-                  <span class="schema-type-title font-mono text-primary">{type}</span>
-                </div>
-                <span class="schema-rich-badge">Eligible for Rich Results</span>
-                <span class="expand-arrow">{expandedSchemas[idx] ? '▲' : '▼'}</span>
-              </button>
-              
-              {#if expandedSchemas[idx]}
-                <div class="schema-json-body font-mono">
-                  <pre class="raw-json"><code>{JSON.stringify({ "@context": "https://schema.org", "@type": type }, null, 2)}</code></pre>
-                </div>
-              {/if}
-            </div>
-          {/each}
-        {/if}
+        {#each schemaItems as schema}
+          <Collapsible cardClass="schema-collapsible-card" headerClass="schema-header-btn" bodyClass="schema-json-body font-mono">
+            {#snippet header()}
+              <div class="schema-title-wrap">
+                <span class="schema-type-title font-mono text-primary">{schema.type}</span>
+              </div>
+            {/snippet}
+            {#snippet badge()}
+              <span class="schema-rich-badge">Eligible for Rich Results</span>
+            {/snippet}
+            <pre class="raw-json"><code>{schema.code}</code></pre>
+          </Collapsible>
+        {/each}
       </div>
     {/if}
   </div>
@@ -755,8 +710,8 @@
     color: var(--color-muted);
   }
 
-  /* Schema collapsed cards */
-  .schema-collapsible-card {
+  /* Schema collapsed cards (the card wrapper is rendered by the Collapsible child). */
+  .schema-cards-container :global(.schema-collapsible-card) {
     border-radius: var(--rounded-md);
     border: 1px solid var(--color-hairline);
     margin-bottom: var(--spacing-sm);
@@ -765,12 +720,13 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .schema-collapsible-card:hover {
+  .schema-cards-container :global(.schema-collapsible-card:hover) {
     border-color: rgba(250, 255, 105, 0.4);
     box-shadow: 0 0 12px rgba(250, 255, 105, 0.06);
   }
 
-  .schema-header-btn {
+  /* The header button lives inside the Collapsible child component, so target it globally. */
+  .schema-cards-container :global(.schema-header-btn) {
     width: 100%;
     background: none;
     border: none;
@@ -785,11 +741,11 @@
     transition: background-color 0.15s ease;
   }
 
-  .schema-header-btn:hover {
+  .schema-cards-container :global(.schema-header-btn:hover) {
     background-color: rgba(255, 255, 255, 0.02);
   }
 
-  .schema-header-btn:focus-visible {
+  .schema-cards-container :global(.schema-header-btn:focus-visible) {
     background-color: rgba(255, 255, 255, 0.04);
     box-shadow: inset 0 0 0 1px var(--color-primary);
   }
@@ -828,13 +784,7 @@
     margin-right: var(--spacing-lg);
   }
 
-  .expand-arrow {
-    color: var(--color-muted);
-    font-size: 12px;
-    transition: transform 0.2s ease;
-  }
-
-  .schema-json-body {
+  .schema-cards-container :global(.schema-json-body) {
     padding: var(--spacing-md);
     background-color: #050507;
     border-top: 1px solid var(--color-hairline);

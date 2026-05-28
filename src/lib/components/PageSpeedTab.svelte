@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AuditResults } from '$lib/seoEngine';
   import StrategyCard from '$lib/components/StrategyCard.svelte';
+  import Collapsible from '$lib/components/Collapsible.svelte';
 
   let {
     auditResults, 
@@ -21,19 +22,12 @@
   // Active explainer card
   let activeExplainer = $state<string | null>(null);
 
-  // Expanded state for recommendation cards
-  let expandedRecs = $state<Record<string, boolean>>({});
-
   // Collapsible passed audits state
   let showPassedAudits = $state(false);
 
   function toggleExplainer(metric: string) {
     if (activeExplainer === metric) activeExplainer = null;
     else activeExplainer = metric;
-  }
-
-  function toggleRec(recTitle: string) {
-    expandedRecs[recTitle] = !expandedRecs[recTitle];
   }
 
   // Compare mobile vs desktop differences
@@ -149,27 +143,23 @@
       {#if auditResults.pageSpeedMobile?.recommendations && auditResults.pageSpeedMobile.recommendations.length > 0}
         <div class="rec-list mt-2">
           {#each auditResults.pageSpeedMobile.recommendations as rec}
-            <div class="rec-card card-dark collapsible-rec">
-              <button class="rec-header-btn" onclick={() => toggleRec(rec.title)}>
+            <Collapsible cardClass="rec-card card-dark collapsible-rec" headerClass="rec-header-btn" bodyClass="rec-body" arrowSpaced>
+              {#snippet header()}
                 <div class="rec-header-left">
                   <span class="badge badge-warning">SAVINGS</span>
                   <h4 class="title-sm inline-rec-title">{rec.title}</h4>
                 </div>
+              {/snippet}
+              {#snippet badge()}
                 <div class="rec-header-right">
                   {#if rec.displayValue}
                     <span class="text-error font-mono">{rec.displayValue}</span>
                   {/if}
-                  <span class="expand-arrow ml-2">{expandedRecs[rec.title] ? '▲' : '▼'}</span>
                 </div>
-              </button>
-
-              {#if expandedRecs[rec.title]}
-                <div class="rec-body mt-2">
-                  <p class="rec-desc text-muted">{rec.description}</p>
-                  <p class="rec-learn-more mt-2"><a href="https://web.dev/fast/" target="_blank" rel="noreferrer">Learn how to audit this recommendation on Web.dev →</a></p>
-                </div>
-              {/if}
-            </div>
+              {/snippet}
+              <p class="rec-desc text-muted">{rec.description}</p>
+              <p class="rec-learn-more mt-2"><a href="https://web.dev/fast/" target="_blank" rel="noreferrer">Learn how to audit this recommendation on Web.dev →</a></p>
+            </Collapsible>
           {/each}
         </div>
       {:else}
@@ -234,7 +224,6 @@
 
   .mt-4 { margin-top: var(--spacing-lg); }
   .mt-2 { margin-top: var(--spacing-xs); }
-  .ml-2 { margin-left: var(--spacing-xs); }
 
   .text-center { text-align: center; flex: 1; }
 
@@ -280,12 +269,13 @@
     gap: var(--spacing-xs);
   }
 
-  .collapsible-rec {
+  /* The card wrapper, header button and body are rendered by the Collapsible child. */
+  .rec-list :global(.collapsible-rec) {
     padding: 0 !important;
     overflow: hidden;
   }
 
-  .rec-header-btn {
+  .rec-list :global(.rec-header-btn) {
     width: 100%;
     background: none;
     border: none;
@@ -302,6 +292,7 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
+    margin-right: auto;
   }
 
   .inline-rec-title {
@@ -314,10 +305,11 @@
     align-items: center;
   }
 
-  .rec-body {
+  .rec-list :global(.rec-body) {
     padding: 0 var(--spacing-sm) var(--spacing-sm) var(--spacing-sm);
     border-top: 1px solid var(--color-hairline);
     padding-top: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
   }
 
   .rec-desc {

@@ -23,7 +23,8 @@
   const nudges = $derived([
     {
       id: 'optimize_meta',
-      title: '✨ Title & Meta Optimizer',
+      icon: '✨',
+      label: 'Title & Meta Optimizer',
       subtitle: 'Generate high-CTR, length-optimized metadata pairs',
       prompt: `Based on the page crawl results, please optimize the page title and meta description.
 Current Title: "${auditResults.onPage.title.text || 'None'}"
@@ -34,7 +35,8 @@ Provide 3 alternative optimized title & description pairs. Keep titles under 60 
     },
     {
       id: 'keyword_planner',
-      title: '🔑 Keyword Strategy',
+      icon: '🔑',
+      label: 'Keyword Strategy',
       subtitle: 'Identify target keyword opportunities & search intent',
       prompt: `Based on the page crawl results, analyze the page structure and headings.
 URL: ${auditResults.url}
@@ -50,7 +52,8 @@ Suggest:
     },
     {
       id: 'readability_audit',
-      title: '📝 Readability & Snippets',
+      icon: '📝',
+      label: 'Readability & Snippets',
       subtitle: 'Structure heading outlines for featured snippet optimization',
       prompt: `Analyze the heading outlines and text readability for the audited page.
 Title: "${auditResults.onPage.title.text || 'None'}"
@@ -303,8 +306,8 @@ Your goal is to answer the user's questions about this SEO audit, provide action
                 {#each nudges as nudge}
                   <button class="nudge-card card-dark" onclick={() => runNudge(nudge.prompt)}>
                     <div class="nudge-card-header">
-                      <span class="nudge-icon">{nudge.title.split(' ')[0]}</span>
-                      <span class="nudge-action-title font-mono">{nudge.title.split(' ').slice(1).join(' ')}</span>
+                      <span class="nudge-icon">{nudge.icon}</span>
+                      <span class="nudge-action-title font-mono">{nudge.label}</span>
                     </div>
                     <p class="nudge-card-subtitle text-xxs text-muted">{nudge.subtitle}</p>
                     <div class="nudge-card-footer font-mono text-xxs">
@@ -345,12 +348,12 @@ Your goal is to answer the user's questions about this SEO audit, provide action
         {#if messages.length > 1 && !isGenerating}
           <div class="quick-nudge-pills">
             {#each nudges as nudge}
-              <button 
-                class="nudge-pill-btn font-mono text-xxs" 
+              <button
+                class="nudge-pill-btn font-mono text-xxs"
                 onclick={() => runNudge(nudge.prompt)}
                 title={nudge.subtitle}
               >
-                {nudge.title}
+                {nudge.icon} {nudge.label}
               </button>
             {/each}
           </div>
