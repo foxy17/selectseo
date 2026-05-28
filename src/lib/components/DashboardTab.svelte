@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AuditResults } from '$lib/seoEngine';
+  import { calculateGrade, type AuditResults } from '$lib/seoEngine';
 
   let { 
     auditResults, 
@@ -14,20 +14,6 @@
     totalLinksCount: number; 
     jumpToSection: (tabName: string, selector?: string) => void;
   } = $props();
-
-  function calculateGrade(score: number): string {
-    if (score >= 97) return 'A+';
-    if (score >= 93) return 'A';
-    if (score >= 90) return 'A-';
-    if (score >= 87) return 'B+';
-    if (score >= 83) return 'B';
-    if (score >= 80) return 'B-';
-    if (score >= 77) return 'C+';
-    if (score >= 73) return 'C';
-    if (score >= 70) return 'C-';
-    if (score >= 60) return 'D';
-    return 'F';
-  }
 
   // Calculate category-level scores
   const categoryScores = $derived.by(() => {
