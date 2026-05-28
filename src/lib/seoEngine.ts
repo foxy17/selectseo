@@ -181,6 +181,42 @@ export function buildProxyFetchUrl(proxyUrl: string, targetUrl: string): string 
 }
 
 /**
+ * fetch wrapper that aborts after `timeoutMs`. If the caller passes its own
+ * AbortSignal in `init`, the request aborts when EITHER the timeout fires or
+ * the external signal aborts. On timeout the returned promise rejects with the
+ * abort error.
+ */
+export async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Wire any caller-provided signal so it also aborts the internal controller.
+  const externalSignal = init.signal;
+  let onExternalAbort: (() => void) | undefined;
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      onExternalAbort = () => controller.abort();
+      externalSignal.addEventListener('abort', onExternalAbort);
+    }
+  }
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    if (externalSignal && onExternalAbort) {
+      externalSignal.removeEventListener('abort', onExternalAbort);
+    }
+  }
+}
+
+/**
  * Calculates letter grade based on numeric score
  */
 export function calculateGrade(score: number): string {
@@ -242,7 +278,7 @@ export async function runSEOAudit(
 ): Promise<AuditResults> {
   onProgress('Initiating crawl through CORS proxy...');
   
-  const response = await fetch(buildProxyFetchUrl(proxyUrl, targetUrl));
+  const response = await fetchWithTimeout(buildProxyFetchUrl(proxyUrl, targetUrl), {}, 10000);
   if (!response.ok) {
     throw new Error(`Failed to crawl URL: ${response.status} ${response.statusText}`);
   }
@@ -261,7 +297,7 @@ export async function runSEOAudit(
   try {
     const parsedUrl = new URL(targetUrl);
     const robotsUrl = `${parsedUrl.protocol}//${parsedUrl.host}/robots.txt`;
-    const robotsRes = await fetch(buildProxyFetchUrl(proxyUrl, robotsUrl));
+    const robotsRes = await fetchWithTimeout(buildProxyFetchUrl(proxyUrl, robotsUrl), {}, 5000);
     if (robotsRes.ok) {
       const robotsContent = await robotsRes.text();
       const lowerRobots = robotsContent.toLowerCase();
@@ -700,76 +736,90 @@ export async function runSEOAudit(
 }
 
 /**
- * Validates a list of links asynchronously in chunks through the CORS proxy
+ * Parses the effective HTTP status from a proxied response (preferring the
+ * X-Status-Code header set by the CORS proxy) and applies the result to the
+ * link. Shared by both the HEAD and GET fallback paths.
+ */
+function applyResponseStatus(link: LinkItem, response: Response, startTime: number): void {
+  link.responseTime = Math.round(performance.now() - startTime);
+
+  const parsed = parseInt(response.headers.get('X-Status-Code') || '', 10);
+  const realStatus = Number.isNaN(parsed) ? response.status : parsed;
+
+  link.status = realStatus;
+  link.statusText = response.statusText;
+  link.statusState = realStatus >= 200 && realStatus < 400 ? 'ok' : 'broken';
+
+  if (realStatus >= 300 && realStatus < 400) {
+    link.redirectDestination =
+      response.headers.get('Location') || response.headers.get('X-Final-Url') || 'Redirected';
+  }
+}
+
+/**
+ * Validates a list of links asynchronously through the CORS proxy using a
+ * fixed-size pool of concurrent promise-workers.
  */
 export async function validateLinks(
   links: LinkItem[],
   proxyUrl: string,
   onLinkUpdated: (link: LinkItem) => void,
-  onComplete: () => void
+  onComplete: () => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const CONCURRENCY = 4; // limit parallel connections
-  const queue = [...links];
-  let running = 0;
 
-  async function processNext() {
-    if (queue.length === 0) {
-      if (running === 0) {
-        onComplete();
-      }
-      return;
-    }
-
-    const link = queue.shift()!;
+  async function checkOneLink(link: LinkItem): Promise<void> {
     link.statusState = 'checking';
     onLinkUpdated(link);
-    running++;
 
     const startFetch = performance.now();
     try {
-      const response = await fetch(buildProxyFetchUrl(proxyUrl, link.href), {
-        method: 'HEAD'
-      });
-      link.responseTime = Math.round(performance.now() - startFetch);
-      
-      const realStatus = parseInt(response.headers.get('X-Status-Code') || response.status.toString());
-      link.status = realStatus;
-      link.statusText = response.statusText;
-      link.statusState = (realStatus >= 200 && realStatus < 400) ? 'ok' : 'broken';
-
-      if (realStatus >= 300 && realStatus < 400) {
-        link.redirectDestination = response.headers.get('Location') || response.headers.get('X-Final-Url') || 'Redirected';
-      }
+      // Primary attempt: lightweight HEAD request.
+      const response = await fetchWithTimeout(
+        buildProxyFetchUrl(proxyUrl, link.href),
+        { method: 'HEAD', signal },
+        8000
+      );
+      applyResponseStatus(link, response, startFetch);
     } catch {
       try {
+        // Fallback: full GET (some servers/proxies reject HEAD).
         const startGet = performance.now();
-        const getResponse = await fetch(buildProxyFetchUrl(proxyUrl, link.href));
-        link.responseTime = Math.round(performance.now() - startGet);
-        
-        const realStatus = parseInt(getResponse.headers.get('X-Status-Code') || getResponse.status.toString());
-        link.status = realStatus;
-        link.statusText = getResponse.statusText;
-        link.statusState = (realStatus >= 200 && realStatus < 400) ? 'ok' : 'broken';
-
-        if (realStatus >= 300 && realStatus < 400) {
-          link.redirectDestination = getResponse.headers.get('Location') || getResponse.headers.get('X-Final-Url') || 'Redirected';
-        }
-      } catch (err: any) {
+        const getResponse = await fetchWithTimeout(
+          buildProxyFetchUrl(proxyUrl, link.href),
+          { signal },
+          8000
+        );
+        applyResponseStatus(link, getResponse, startGet);
+      } catch {
+        // Both attempts failed (network failure, abort, CORS, DNS): the link
+        // is unreachable. Do NOT fabricate a 500 status.
         link.responseTime = Math.round(performance.now() - startFetch);
-        link.status = 500;
-        link.statusText = err.message || 'Fetch Failed';
+        link.status = null;
+        link.statusText = 'Unreachable';
         link.statusState = 'broken';
       }
     }
 
     onLinkUpdated(link);
-    running--;
-    processNext();
   }
 
-  for (let i = 0; i < Math.min(CONCURRENCY, links.length); i++) {
-    processNext();
-  }
+  const queue = [...links];
+  await Promise.all(
+    Array.from({ length: CONCURRENCY }, () =>
+      (async () => {
+        while (queue.length) {
+          if (signal?.aborted) break;
+          const link = queue.shift();
+          if (!link) break;
+          await checkOneLink(link);
+        }
+      })()
+    )
+  );
+
+  onComplete();
 }
 
 /**
@@ -785,7 +835,7 @@ export async function fetchPageSpeed(
     endpoint += `&key=${apiKey}`;
   }
 
-  const res = await fetch(endpoint);
+  const res = await fetchWithTimeout(endpoint, {}, 60000);
   if (!res.ok) {
     let errMsg = `Status ${res.status} ${res.statusText}`;
     try {
