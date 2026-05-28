@@ -14,6 +14,10 @@
   import AiChatTab from '$lib/components/AiChatTab.svelte';
   import AIDiscoverabilityTab from '$lib/components/AIDiscoverabilityTab.svelte';
   import ConsoleHud from '$lib/components/ConsoleHud.svelte';
+  import AuditSettings from '$lib/components/AuditSettings.svelte';
+  import { settings } from '$lib/settings.svelte';
+  import { loadHistory, upsert } from '$lib/crawlHistory';
+  import type { CrawlHistoryItem } from '$lib/crawlHistory';
   import { appState } from '$lib/sharedState.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -32,17 +36,6 @@
 
   // Derived normalized target URL (no state mutation inside effects).
   const currentUrl = $derived(rawUrl ? normalizeUrl(rawUrl) : '');
-
-  // Local state for scan & settings
-  let proxyUrl = $state('https://corsproxy.io/?url=');
-  let selectedProxy = $state('https://corsproxy.io/?url=');
-  let apiKey = $state('');
-  
-  $effect(() => {
-    if (selectedProxy !== 'custom') {
-      proxyUrl = selectedProxy;
-    }
-  });
 
   let isScanning = $state(false);
   let scanLogs = $state<string[]>([]);
@@ -73,24 +66,10 @@
   }
 
   // Caching & History logic
-  function loadCrawlHistory(): any[] {
-    const saved = localStorage.getItem('seo_crawl_history');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse crawl history:', e);
-      }
-    }
-    return [];
-  }
-
   function saveCrawlToHistory() {
     const results = auditResults;
     if (!results) return;
-    
-    let historyList = loadCrawlHistory();
-    
+
     // Count errors and warnings
     const errCount = (results.onPage.title.status === 'missing' ? 1 : 0) +
       (results.onPage.description.status === 'missing' ? 1 : 0) +
@@ -105,7 +84,7 @@
       (results.onPage.canonical.status === 'missing' ? 1 : 0) +
       (results.onPage.openGraph.status === 'missing' ? 1 : 0);
 
-    const historyItem = {
+    const historyItem: CrawlHistoryItem = {
       url: results.url,
       timestamp: results.timestamp || new Date().toISOString(),
       score: results.score,
@@ -114,15 +93,8 @@
       warningCount: warnCount,
       results: $state.snapshot(results)
     };
-    
-    historyList = historyList.filter(item => item.url !== results.url);
-    historyList = [historyItem, ...historyList].slice(0, 6);
-    
-    try {
-      localStorage.setItem('seo_crawl_history', JSON.stringify(historyList));
-    } catch (e) {
-      console.warn('Failed to save crawl to history:', e);
-    }
+
+    upsert(historyItem);
   }
 
   // Settings & Crawl Initialization
@@ -132,22 +104,7 @@
       log(`[ERROR] SQL Engine failure: ${err.message || err}`);
     });
 
-    const savedProxy = localStorage.getItem('seo_proxy_url');
-    const savedKey = localStorage.getItem('seo_pagespeed_key');
-    
-    if (savedProxy) {
-      proxyUrl = savedProxy;
-    }
-    
-    if (proxyUrl === 'https://corsproxy.io/?url=') {
-      selectedProxy = 'https://corsproxy.io/?url=';
-    } else if (proxyUrl === 'https://api.allorigins.win/raw?url=') {
-      selectedProxy = 'https://api.allorigins.win/raw?url=';
-    } else {
-      selectedProxy = 'custom';
-    }
-    
-    if (savedKey) apiKey = savedKey;
+    settings.load();
   });
 
   // Reactive crawl trigger when the normalized target URL changes.
@@ -179,7 +136,7 @@
     checkedLinksCount = 0;
     totalLinksCount = 0;
 
-    const history = loadCrawlHistory();
+    const history = loadHistory();
     const cachedItem = history.find(item => item.url === url);
 
     if (cachedItem && !forceRecrawl) {
@@ -206,7 +163,7 @@
     const abortSignal = currentAbort?.signal;
     try {
       // 1. Crawl & Run On-Page Audit
-      const results = await runSEOAudit(urlToScan, proxyUrl, (msg) => log(msg));
+      const results = await runSEOAudit(urlToScan, settings.effectiveProxyUrl, (msg) => log(msg));
       if (myGen !== crawlGeneration) return; // superseded by a newer crawl
       auditResults = results;
 
@@ -222,7 +179,7 @@
 
         validateLinks(
           results.links,
-          proxyUrl,
+          settings.effectiveProxyUrl,
           (updatedLink) => {
             if (myGen !== crawlGeneration) return; // discard stale link result
             if (auditResults) {
@@ -272,7 +229,7 @@
     pageSpeedDesktopError = '';
     log('Requesting Google PageSpeed Desktop report...');
     try {
-      const desktopStats = await fetchPageSpeed(url, 'desktop', apiKey);
+      const desktopStats = await fetchPageSpeed(url, 'desktop', settings.apiKey);
       if (myGen !== crawlGeneration) return; // superseded; discard stale result
       if (auditResults) {
         auditResults.pageSpeedDesktop = desktopStats;
@@ -295,7 +252,7 @@
     pageSpeedMobileError = '';
     log('Requesting Google PageSpeed Mobile report...');
     try {
-      const mobileStats = await fetchPageSpeed(url, 'mobile', apiKey);
+      const mobileStats = await fetchPageSpeed(url, 'mobile', settings.apiKey);
       if (myGen !== crawlGeneration) return; // superseded; discard stale result
       if (auditResults) {
         auditResults.pageSpeedMobile = mobileStats;
@@ -346,13 +303,6 @@
 
     auditResults.score = Math.max(0, Math.min(100, baseScore));
     auditResults.grade = calculateGrade(auditResults.score);
-  }
-
-  // Settings controls
-  function saveSettings() {
-    localStorage.setItem('seo_proxy_url', proxyUrl);
-    localStorage.setItem('seo_pagespeed_key', apiKey);
-    log('Settings updated and stored locally.');
   }
 
   // PageSpeed states
@@ -483,32 +433,13 @@
         />
 
         <!-- Audit Configurations inside crawl screen -->
-        <div class="settings-drawer card-dark mt-4">
-          <h3 class="title-sm">Crawl Configurations (Active)</h3>
-          <p class="text-muted text-xs mb-3">Adjust configurations below if you need to rerun or modify the proxy parameters.</p>
-          <div class="settings-grid">
-            <div class="field proxy-field-group">
-              <div class="proxy-select-wrap">
-                <label for="proxy-select">CORS Proxy Choice</label>
-                <select id="proxy-select" class="text-input select-input" bind:value={selectedProxy}>
-                  <option value="https://corsproxy.io/?url=">CORSProxy.io (Recommended)</option>
-                  <option value="https://api.allorigins.win/raw?url=">AllOrigins (Raw)</option>
-                  <option value="custom">Custom Proxy...</option>
-                </select>
-              </div>
-              {#if selectedProxy === 'custom'}
-                <div class="proxy-input-wrap animate-fade-in mt-1">
-                  <label for="proxy-input">Custom Proxy URL</label>
-                  <input id="proxy-input" type="text" class="text-input" bind:value={proxyUrl} placeholder="e.g. https://myproxy.com/?url=" />
-                </div>
-              {/if}
-            </div>
-            <div class="field">
-              <label for="pagespeed-input">PageSpeed API Key (Optional)</label>
-              <input id="pagespeed-input" type="password" class="text-input" bind:value={apiKey} placeholder="Google Cloud API Key" />
-            </div>
-            <button class="btn btn-secondary save-btn font-mono" onclick={saveSettings}>Update settings</button>
-          </div>
+        <div class="mt-4">
+          <AuditSettings
+            title="Crawl Configurations (Active)"
+            intro="Adjust configurations below if you need to rerun or modify the proxy parameters."
+            saveLabel="Update settings"
+            onsave={() => log('Settings updated and stored locally.')}
+          />
         </div>
       </div>
     </section>
@@ -716,46 +647,6 @@
     background-color: rgba(250, 255, 105, 0.05);
   }
 
-  .settings-drawer {
-    padding: var(--spacing-md);
-  }
-
-  .settings-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap: var(--spacing-md);
-    align-items: flex-end;
-    margin-top: var(--spacing-xs);
-  }
-
-  .settings-grid label {
-    font-size: 12px;
-    color: var(--color-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-bottom: var(--spacing-xxs);
-    display: block;
-  }
-
-  .text-input {
-    background-color: var(--color-surface-soft);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--rounded-sm);
-    color: var(--color-on-dark);
-    padding: 8px 12px;
-    outline: none;
-    width: 100%;
-    font-size: 14px;
-  }
-
-  .text-input:focus {
-    border-color: var(--color-primary);
-  }
-
-  .save-btn {
-    height: 38px;
-  }
-
   /* Results dashboard layout */
   .results-section {
     padding: 64px 0;
@@ -959,9 +850,6 @@
       flex-direction: column;
       align-items: flex-start;
       gap: var(--spacing-md);
-    }
-    .settings-grid {
-      grid-template-columns: 1fr;
     }
   }
 </style>

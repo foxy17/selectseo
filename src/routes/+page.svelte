@@ -3,6 +3,10 @@
   import { initSqlEngine } from '$lib/sqlEngine';
   import SEO from '$lib/components/SEO.svelte';
   import ConsoleHud from '$lib/components/ConsoleHud.svelte';
+  import AuditSettings from '$lib/components/AuditSettings.svelte';
+  import { settings } from '$lib/settings.svelte';
+  import { loadHistory, deleteHistoryItem as removeHistoryItem } from '$lib/crawlHistory';
+  import type { CrawlHistoryItem } from '$lib/crawlHistory';
   import { appState } from '$lib/sharedState.svelte';
   import { goto } from '$app/navigation';
 
@@ -37,16 +41,7 @@
 
   // State using Svelte 5 Runes
   let targetUrl = $state('https://carnav.in');
-  let proxyUrl = $state('https://corsproxy.io/?url=');
-  let selectedProxy = $state('https://corsproxy.io/?url=');
-  let apiKey = $state('');
 
-  $effect(() => {
-    if (selectedProxy !== 'custom') {
-      proxyUrl = selectedProxy;
-    }
-  });
-  
   let scanLogs = $state<string[]>([]);
 
   // Reset layout shared state on landing page
@@ -55,27 +50,14 @@
   });
 
   // Crawl History state & logic
-  let crawlHistory = $state<any[]>([]);
-
-  function loadCrawlHistory() {
-    const saved = localStorage.getItem('seo_crawl_history');
-    if (saved) {
-      try {
-        crawlHistory = JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse crawl history:', e);
-      }
-    }
-  }
+  let crawlHistory = $state<CrawlHistoryItem[]>([]);
 
   function deleteHistoryItem(url: string, event: Event) {
     event.stopPropagation();
-    const updated = crawlHistory.filter(item => item.url !== url);
-    localStorage.setItem('seo_crawl_history', JSON.stringify(updated));
-    crawlHistory = updated;
+    crawlHistory = removeHistoryItem(url);
   }
 
-  function loadCrawlFromHistory(item: any) {
+  function loadCrawlFromHistory(item: CrawlHistoryItem) {
     goto(`/crawl-detail/${item.url}`);
   }
 
@@ -94,30 +76,14 @@
 
   // Persistence using localstorage on mount
   onMount(() => {
-    loadCrawlHistory();
-    
+    crawlHistory = loadHistory();
+    settings.load();
+
     // Check if new-crawl event triggered to reset input fields
     const handleNewCrawl = () => {
       targetUrl = '';
     };
     window.addEventListener('new-crawl', handleNewCrawl);
-
-    const savedProxy = localStorage.getItem('seo_proxy_url');
-    const savedKey = localStorage.getItem('seo_pagespeed_key');
-    
-    if (savedProxy) {
-      proxyUrl = savedProxy;
-    }
-    
-    if (proxyUrl === 'https://corsproxy.io/?url=') {
-      selectedProxy = 'https://corsproxy.io/?url=';
-    } else if (proxyUrl === 'https://api.allorigins.win/raw?url=') {
-      selectedProxy = 'https://api.allorigins.win/raw?url=';
-    } else {
-      selectedProxy = 'custom';
-    }
-    
-    if (savedKey) apiKey = savedKey;
 
     // Start typewriter effect for terminal
     let msgIdx = 0;
@@ -159,12 +125,6 @@
     };
   });
 
-  function saveSettings() {
-    localStorage.setItem('seo_proxy_url', proxyUrl);
-    localStorage.setItem('seo_pagespeed_key', apiKey);
-    log('Settings updated and stored locally.');
-  }
-
   // Handle Scan Navigation Route
   function handleScan() {
     if (!targetUrl) return;
@@ -204,32 +164,11 @@
           </div>
           
           <!-- Quick settings disclosure -->
-          <div class="settings-drawer card-dark">
-            <h3 class="title-sm">Audit Configurations</h3>
-            <div class="settings-grid">
-              <div class="field proxy-field-group">
-                <div class="proxy-select-wrap">
-                  <label for="proxy-select">CORS Proxy Choice</label>
-                  <select id="proxy-select" class="text-input select-input" bind:value={selectedProxy}>
-                    <option value="https://corsproxy.io/?url=">CORSProxy.io (Recommended)</option>
-                    <option value="https://api.allorigins.win/raw?url=">AllOrigins (Raw)</option>
-                    <option value="custom">Custom Proxy...</option>
-                  </select>
-                </div>
-                {#if selectedProxy === 'custom'}
-                  <div class="proxy-input-wrap animate-fade-in">
-                    <label for="proxy-input">Custom Proxy URL</label>
-                    <input id="proxy-input" type="text" class="text-input" bind:value={proxyUrl} placeholder="e.g. https://myproxy.com/?url=" />
-                  </div>
-                {/if}
-              </div>
-              <div class="field">
-                <label for="pagespeed-input">PageSpeed API Key (Optional)</label>
-                <input id="pagespeed-input" type="password" class="text-input" bind:value={apiKey} placeholder="Google Cloud API Key" />
-              </div>
-              <button class="btn btn-secondary save-btn font-mono" onclick={saveSettings}>Save Settings</button>
-            </div>
-          </div>
+          <AuditSettings
+            title="Audit Configurations"
+            saveLabel="Save Settings"
+            onsave={() => log('Settings updated and stored locally.')}
+          />
         </div>
       </div>
 
@@ -515,56 +454,10 @@
     padding: 0 var(--spacing-lg);
   }
 
-  .settings-drawer {
-    padding: var(--spacing-md);
-  }
-
-  .settings-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap: var(--spacing-md);
-    align-items: flex-end;
-    margin-top: var(--spacing-xs);
-  }
-
-  .settings-grid label {
-    font-size: 12px;
-    color: var(--color-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-bottom: var(--spacing-xxs);
-    display: block;
-  }
-
-  .text-input {
-    background-color: var(--color-surface-soft);
-    border: 1px solid var(--color-hairline);
-    border-radius: var(--rounded-sm);
-    color: var(--color-on-dark);
-    padding: 8px 12px;
-    outline: none;
-    width: 100%;
-    font-size: 14px;
-  }
-
-  .text-input:focus {
-    border-color: var(--color-primary);
-  }
-
-  .save-btn {
-    height: 38px;
-  }
-
   @media (max-width: 1024px) {
     .hero-container {
       grid-template-columns: 1fr;
       gap: var(--spacing-xl);
-    }
-  }
-
-  @media (max-width: 768px) {
-    .settings-grid {
-      grid-template-columns: 1fr;
     }
   }
 </style>
