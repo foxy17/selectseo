@@ -449,7 +449,7 @@
 
   /* Actionable link issues box */
   .links-issues-panel {
-    background-color: rgba(239, 68, 68, 0.05);
+    background-color: rgb(var(--color-error-rgb) / 0.05);
     border-left: 4px solid var(--color-error);
     border-radius: var(--rounded-md);
     padding: var(--spacing-sm);
@@ -472,12 +472,12 @@
     transition: background-color 0.15s ease;
   }
 
-  .pill-error { background-color: rgba(239, 68, 68, 0.12); color: var(--color-error); border: 1px solid rgba(239, 68, 68, 0.2); }
-  .pill-error:hover { background-color: rgba(239, 68, 68, 0.25); }
-  .pill-warning { background-color: rgba(245, 158, 11, 0.12); color: var(--color-warning); border: 1px solid rgba(245, 158, 11, 0.2); }
-  .pill-warning:hover { background-color: rgba(245, 158, 11, 0.25); }
-  .pill-info { background-color: rgba(59, 130, 246, 0.12); color: var(--color-accent-blue); border: 1px solid rgba(59, 130, 246, 0.2); }
-  .pill-info:hover { background-color: rgba(59, 130, 246, 0.25); }
+  .pill-error { background-color: rgb(var(--color-error-rgb) / 0.12); color: var(--color-error); border: 1px solid rgb(var(--color-error-rgb) / 0.2); }
+  .pill-error:hover { background-color: rgb(var(--color-error-rgb) / 0.25); }
+  .pill-warning { background-color: rgb(var(--color-warning-rgb) / 0.12); color: var(--color-warning); border: 1px solid rgb(var(--color-warning-rgb) / 0.2); }
+  .pill-warning:hover { background-color: rgb(var(--color-warning-rgb) / 0.25); }
+  .pill-info { background-color: rgb(var(--color-accent-blue-rgb) / 0.12); color: var(--color-accent-blue); border: 1px solid rgb(var(--color-accent-blue-rgb) / 0.2); }
+  .pill-info:hover { background-color: rgb(var(--color-accent-blue-rgb) / 0.25); }
 
   /* Filters */
   .filter-actions-bar {
@@ -532,16 +532,16 @@
   }
 
   .btn-error-bg {
-    background-color: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background-color: rgb(var(--color-error-rgb) / 0.1);
+    border: 1px solid rgb(var(--color-error-rgb) / 0.3);
     color: var(--color-error);
     transition: all 0.15s ease;
   }
 
   .btn-error-bg:hover {
     background-color: var(--color-error);
-    color: #ffffff;
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+    color: var(--color-on-dark);
+    box-shadow: 0 4px 12px rgb(var(--color-error-rgb) / 0.25);
   }
 
   /* Muted Cyberpunk Badges for Scope & Security */
@@ -559,8 +559,8 @@
     color: var(--color-body);
   }
   .badge-yellow {
-    background-color: rgba(59, 130, 246, 0.04);
-    border: 1px solid rgba(59, 130, 246, 0.15);
+    background-color: rgb(var(--color-accent-blue-rgb) / 0.04);
+    border: 1px solid rgb(var(--color-accent-blue-rgb) / 0.15);
     color: var(--color-accent-blue);
   }
 
@@ -576,7 +576,7 @@
     font-weight: 700;
     font-size: 11px;
     font-family: var(--font-family-mono);
-    text-shadow: 0 0 6px rgba(239, 68, 68, 0.2);
+    text-shadow: 0 0 6px rgb(var(--color-error-rgb) / 0.2);
     animation: blink-danger 2s infinite alternate;
   }
 
@@ -597,20 +597,20 @@
     font-family: var(--font-family-mono);
   }
   .status-ok {
-    color: rgba(34, 197, 94, 0.55);
+    color: rgb(var(--color-success-rgb) / 0.55);
     font-size: 12px;
     font-family: var(--font-family-mono);
     font-weight: 500;
   }
 
   .badge-error {
-    background-color: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    background-color: rgb(var(--color-error-rgb) / 0.1);
+    border: 1px solid rgb(var(--color-error-rgb) / 0.25);
     color: var(--color-error);
-    box-shadow: 0 0 6px rgba(239, 68, 68, 0.1);
+    box-shadow: 0 0 6px rgb(var(--color-error-rgb) / 0.1);
   }
 
-  .ml-2 { margin-left: var(--spacing-xs); }
+  /* .ml-2 is provided globally in index.css (same token value). */
 
   /* Sort headers */
   .clickable-header {
@@ -684,11 +684,11 @@
   }
 
   .link-row:hover {
-    background-color: rgba(250, 255, 105, 0.03) !important;
+    background-color: rgb(var(--color-primary-rgb) / 0.03) !important;
   }
 
   .row-expanded {
-    background-color: rgba(250, 255, 105, 0.02) !important;
+    background-color: rgb(var(--color-primary-rgb) / 0.02) !important;
   }
 
   .anchor-text-cell {

@@ -6,7 +6,7 @@
 
 <div class="ai-discoverability-tab">
   <div class="score-card card-dark">
-    <div class="score-header">
+    <div class="row-between">
       <h3 class="title-md">AI Readiness Score</h3>
       <div class="score-badge font-mono" class:grade-a={audit.score >= 90} class:grade-b={audit.score >= 80 && audit.score < 90} class:grade-c={audit.score >= 70 && audit.score < 80} class:grade-f={audit.score < 70}>
         {audit.score}/100 ({audit.grade})
@@ -18,7 +18,7 @@
   <div class="audit-grid grid grid-2 mt-4">
     <!-- Q&A Formatting -->
     <div class="audit-card card-dark">
-      <div class="audit-header">
+      <div class="row-between">
         <h4 class="title-sm">Fact-First Q&A Formatting</h4>
         <span class="status-badge" class:status-ok={audit.qaFormatting.status === 'ok'} class:status-warn={audit.qaFormatting.status === 'warning'}>
           {audit.qaFormatting.status.toUpperCase()}
@@ -29,7 +29,7 @@
 
     <!-- Scannability -->
     <div class="audit-card card-dark">
-      <div class="audit-header">
+      <div class="row-between">
         <h4 class="title-sm">Content Scannability (Lists & Tables)</h4>
         <span class="status-badge" class:status-ok={audit.scannability.status === 'ok'} class:status-warn={audit.scannability.status === 'warning'}>
           {audit.scannability.status.toUpperCase()}
@@ -40,7 +40,7 @@
 
     <!-- Semantic HTML -->
     <div class="audit-card card-dark">
-      <div class="audit-header">
+      <div class="row-between">
         <h4 class="title-sm">Semantic HTML Structure</h4>
         <span class="status-badge" class:status-ok={audit.semanticHtml.status === 'ok'} class:status-warn={audit.semanticHtml.status === 'warning'}>
           {audit.semanticHtml.status.toUpperCase()}
@@ -51,7 +51,7 @@
 
     <!-- Target Schema -->
     <div class="audit-card card-dark">
-      <div class="audit-header">
+      <div class="row-between">
         <h4 class="title-sm">High-Value AI Schema Depth</h4>
         <span class="status-badge" class:status-ok={audit.targetSchema.status === 'ok'} class:status-warn={audit.targetSchema.status === 'warning'}>
           {audit.targetSchema.status.toUpperCase()}
@@ -62,7 +62,7 @@
 
     <!-- Robots TXT -->
     <div class="audit-card card-dark" style="grid-column: 1 / -1">
-      <div class="audit-header">
+      <div class="row-between">
         <h4 class="title-sm">AI Crawler Permissions (robots.txt)</h4>
         <span class="status-badge" class:status-ok={audit.robotsTxtAi.status === 'ok'} class:status-warn={audit.robotsTxtAi.status === 'warning'}>
           {audit.robotsTxtAi.status.toUpperCase()}
@@ -84,12 +84,6 @@
     padding: var(--spacing-lg);
   }
 
-  .score-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
   .score-badge {
     padding: 8px 16px;
     border-radius: var(--rounded-md);
@@ -99,7 +93,7 @@
   }
 
   .grade-a { color: var(--color-success); border: 1px solid var(--color-success); }
-  .grade-b { color: #3b82f6; border: 1px solid #3b82f6; }
+  .grade-b { color: var(--color-accent-blue); border: 1px solid var(--color-accent-blue); }
   .grade-c { color: var(--color-warning); border: 1px solid var(--color-warning); }
   .grade-f { color: var(--color-error); border: 1px solid var(--color-error); }
 
@@ -114,12 +108,6 @@
     gap: var(--spacing-xs);
   }
 
-  .audit-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
   .status-badge {
     font-size: 10px;
     font-weight: 700;
@@ -128,9 +116,9 @@
     font-family: var(--font-family-mono);
   }
 
+  /* #10b981 (emerald-600) is intentionally distinct from --color-success (#22c55e). */
   .status-ok { background-color: rgba(16, 185, 129, 0.15); color: #10b981; }
-  .status-warn { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-  .status-err { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; }
+  .status-warn { background-color: rgb(var(--color-warning-rgb) / 0.15); color: var(--color-warning); }
 
   .audit-msg {
     font-size: 14px;

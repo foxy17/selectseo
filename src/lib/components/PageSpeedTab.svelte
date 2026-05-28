@@ -205,7 +205,6 @@
   }
 
   .max-w-sm { max-width: 480px; }
-  .max-w-sm p { line-height: 1.6; }
 
   /* Loader spinner */
   .loader-spinner {
@@ -222,8 +221,7 @@
     100% { transform: rotate(360deg); }
   }
 
-  .mt-4 { margin-top: var(--spacing-lg); }
-  .mt-2 { margin-top: var(--spacing-xs); }
+  /* .mt-4 / .mt-2 are provided globally in index.css (same token values). */
 
   .text-center { text-align: center; flex: 1; }
 
@@ -231,7 +229,7 @@
   .explainer-panel-box {
     padding: var(--spacing-sm);
     border-left: 3px solid var(--color-primary);
-    background-color: rgba(250, 255, 105, 0.02);
+    background-color: rgb(var(--color-primary-rgb) / 0.02);
   }
 
   /* Delta comparison strip */
@@ -259,8 +257,6 @@
     display: inline-flex;
     gap: 4px;
   }
-
-  .font-semibold { font-weight: 600; }
 
   /* Recommendations */
   .rec-list {
@@ -345,10 +341,10 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--spacing-xs);
-    background-color: rgba(34, 197, 94, 0.02);
+    background-color: rgb(var(--color-success-rgb) / 0.02);
     padding: var(--spacing-sm);
     border-radius: var(--rounded-md);
-    border: 1px solid rgba(34, 197, 94, 0.1);
+    border: 1px solid rgb(var(--color-success-rgb) / 0.1);
   }
 
   .passed-item {

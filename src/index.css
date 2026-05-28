@@ -19,12 +19,21 @@
   --color-on-primary: #0a0a0a;
   --color-on-dark: #ffffff;
   --color-on-yellow: #0a0a0a;
-  --color-accent-emerald: #22c55e;
-  --color-accent-rose: #ef4444;
   --color-accent-blue: #3b82f6;
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
+  /* Aliases — same value as their canonical token, kept for existing references. */
+  --color-accent-emerald: var(--color-success);
+  --color-accent-rose: var(--color-error);
+
+  /* RGB channels for the brand palette (space-separated) so alpha can be
+     expressed as rgb(var(--color-X-rgb) / A) instead of hardcoded rgba(). */
+  --color-primary-rgb: 250 255 105; /* #faff69 */
+  --color-success-rgb: 34 197 94; /* #22c55e */
+  --color-warning-rgb: 245 158 11; /* #f59e0b */
+  --color-error-rgb: 239 68 68; /* #ef4444 */
+  --color-accent-blue-rgb: 59 130 246; /* #3b82f6 */
 
   /* Typography Sizes & Settings */
   --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -147,6 +156,23 @@ a:hover {
 }
 
 /* Layout Utilities */
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Spacing utilities mapped to the canonical --spacing-* tokens (one value each). */
+.mt-2 {
+  margin-top: var(--spacing-xs);
+}
+.mt-4 {
+  margin-top: var(--spacing-lg);
+}
+.ml-2 {
+  margin-left: var(--spacing-xs);
+}
+
 .container {
   max-width: 1280px;
   margin: 0 auto;
@@ -290,21 +316,21 @@ a:hover {
 }
 
 .badge-success {
-  background-color: rgba(34, 197, 94, 0.15);
+  background-color: rgb(var(--color-success-rgb) / 0.15);
   color: var(--color-success);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  border: 1px solid rgb(var(--color-success-rgb) / 0.3);
 }
 
 .badge-warning {
-  background-color: rgba(245, 158, 11, 0.15);
+  background-color: rgb(var(--color-warning-rgb) / 0.15);
   color: var(--color-warning);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgb(var(--color-warning-rgb) / 0.3);
 }
 
 .badge-error {
-  background-color: rgba(239, 68, 68, 0.15);
+  background-color: rgb(var(--color-error-rgb) / 0.15);
   color: var(--color-error);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgb(var(--color-error-rgb) / 0.3);
 }
 
 /* Global Text Utility Colors */

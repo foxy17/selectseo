@@ -402,8 +402,7 @@
     color: var(--color-on-dark);
   }
 
-  .mt-4 { margin-top: var(--spacing-lg); }
-  .mt-2 { margin-top: var(--spacing-xs); }
+  /* .mt-4 / .mt-2 are provided globally in index.css (same token values). */
 
   /* Issue Cards */
   .issue-card {

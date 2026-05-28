@@ -520,8 +520,8 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     font-size: 10px;
     font-weight: 700;
     color: var(--color-primary);
-    background-color: rgba(250, 255, 105, 0.08);
-    border: 1px solid rgba(250, 255, 105, 0.25);
+    background-color: rgb(var(--color-primary-rgb) / 0.08);
+    border: 1px solid rgb(var(--color-primary-rgb) / 0.25);
     border-radius: var(--rounded-sm);
     text-transform: uppercase;
     cursor: pointer;
@@ -532,7 +532,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     background-color: var(--color-primary);
     color: var(--color-on-primary);
     border-color: var(--color-primary);
-    box-shadow: 0 0 10px rgba(250, 255, 105, 0.2);
+    box-shadow: 0 0 10px rgb(var(--color-primary-rgb) / 0.2);
   }
 
   .new-chat-icon {
@@ -564,12 +564,12 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     background-color: rgba(0, 0, 0, 0.2);
   }
   .setup-guide-box.border-error {
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.05);
+    border: 1px solid rgb(var(--color-error-rgb) / 0.2);
+    box-shadow: inset 0 0 10px rgb(var(--color-error-rgb) / 0.05);
   }
   .setup-guide-box.border-warning {
-    border: 1px solid rgba(245, 158, 11, 0.2);
-    box-shadow: inset 0 0 10px rgba(245, 158, 11, 0.05);
+    border: 1px solid rgb(var(--color-warning-rgb) / 0.2);
+    box-shadow: inset 0 0 10px rgb(var(--color-warning-rgb) / 0.05);
   }
 
   .text-error { color: var(--color-error); }
@@ -619,8 +619,8 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     font-size: 18px;
     font-weight: 700;
     color: var(--color-primary);
-    background-color: rgba(250, 255, 105, 0.05);
-    border: 1px solid rgba(250, 255, 105, 0.1);
+    background-color: rgb(var(--color-primary-rgb) / 0.05);
+    border: 1px solid rgb(var(--color-primary-rgb) / 0.1);
     width: 36px;
     height: 36px;
     display: flex;
@@ -650,10 +650,10 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 
   .code-value {
     color: var(--color-primary);
-    background-color: rgba(250, 255, 105, 0.05);
+    background-color: rgb(var(--color-primary-rgb) / 0.05);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(250, 255, 105, 0.1);
+    border: 1px solid rgb(var(--color-primary-rgb) / 0.1);
     display: inline-block;
     width: fit-content;
     margin-top: 4px;
@@ -701,7 +701,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     border-radius: 3px;
   }
   .chat-history::-webkit-scrollbar-thumb:hover {
-    background: rgba(250, 255, 105, 0.25);
+    background: rgb(var(--color-primary-rgb) / 0.25);
   }
 
   .chat-history.welcome-state {
@@ -739,11 +739,11 @@ Your goal is to answer the user's questions about this SEO audit, provide action
   }
 
   .message-bubble.user {
-    background: linear-gradient(135deg, rgba(250, 255, 105, 0.15) 0%, rgba(250, 255, 105, 0.04) 100%);
-    border: 1px solid rgba(250, 255, 105, 0.25);
+    background: linear-gradient(135deg, rgb(var(--color-primary-rgb) / 0.15) 0%, rgb(var(--color-primary-rgb) / 0.04) 100%);
+    border: 1px solid rgb(var(--color-primary-rgb) / 0.25);
     color: var(--color-ink);
     border-top-right-radius: 2px;
-    box-shadow: 0 4px 12px rgba(250, 255, 105, 0.03);
+    box-shadow: 0 4px 12px rgb(var(--color-primary-rgb) / 0.03);
   }
 
   .msg-author {
@@ -776,8 +776,8 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background-color: rgba(250, 255, 105, 0.05);
-    border: 1px solid rgba(250, 255, 105, 0.2);
+    background-color: rgb(var(--color-primary-rgb) / 0.05);
+    border: 1px solid rgb(var(--color-primary-rgb) / 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -789,7 +789,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    box-shadow: 0 0 20px rgba(250, 255, 105, 0.15);
+    box-shadow: 0 0 20px rgb(var(--color-primary-rgb) / 0.15);
     animation: pulseGlow 2.5s infinite ease-in-out;
   }
 
@@ -812,7 +812,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
   }
 
   .text-gradient {
-    background: linear-gradient(90deg, #ffffff 30%, var(--color-primary) 100%);
+    background: linear-gradient(90deg, var(--color-on-dark) 30%, var(--color-primary) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -827,8 +827,8 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 
   .hero-url {
     color: var(--color-primary);
-    background-color: rgba(250, 255, 105, 0.06);
-    border: 1px solid rgba(250, 255, 105, 0.15);
+    background-color: rgb(var(--color-primary-rgb) / 0.06);
+    border: 1px solid rgb(var(--color-primary-rgb) / 0.15);
     padding: 2px 6px;
     border-radius: var(--rounded-xs);
     font-family: var(--font-family-mono);
@@ -872,9 +872,9 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 
   .nudge-card:hover {
     border-color: var(--color-primary);
-    background-color: rgba(250, 255, 105, 0.03);
+    background-color: rgb(var(--color-primary-rgb) / 0.03);
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 15px rgba(250, 255, 105, 0.05);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 15px rgb(var(--color-primary-rgb) / 0.05);
   }
 
   .nudge-card-header {
@@ -920,7 +920,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 
   .nudge-card:hover .nudge-card-footer {
     color: var(--color-primary);
-    border-color: rgba(250, 255, 105, 0.1);
+    border-color: rgb(var(--color-primary-rgb) / 0.1);
   }
 
   .nudge-card-footer .arrow {
@@ -959,7 +959,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
   .nudge-pill-btn:hover {
     border-color: var(--color-primary);
     color: var(--color-primary);
-    background-color: rgba(250, 255, 105, 0.05);
+    background-color: rgb(var(--color-primary-rgb) / 0.05);
   }
 
   /* Chat Input Area */
@@ -991,7 +991,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
   .chat-input:focus {
     outline: none;
     border-color: var(--color-primary);
-    box-shadow: 0 0 10px rgba(250, 255, 105, 0.08);
+    box-shadow: 0 0 10px rgb(var(--color-primary-rgb) / 0.08);
   }
 
   .send-btn {
@@ -1007,52 +1007,52 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     text-transform: uppercase;
     font-size: 11px;
     letter-spacing: 0.5px;
-    box-shadow: 0 4px 12px rgba(250, 255, 105, 0.15);
+    box-shadow: 0 4px 12px rgb(var(--color-primary-rgb) / 0.15);
     transition: all 0.2s ease;
     cursor: pointer;
   }
 
   .send-btn:hover:not(:disabled) {
     background-color: var(--color-primary-active);
-    box-shadow: 0 6px 16px rgba(250, 255, 105, 0.25);
+    box-shadow: 0 6px 16px rgb(var(--color-primary-rgb) / 0.25);
     transform: translateY(-1px);
   }
 
   .send-btn:active:not(:disabled) {
     transform: translateY(1px);
-    box-shadow: 0 2px 6px rgba(250, 255, 105, 0.15);
+    box-shadow: 0 2px 6px rgb(var(--color-primary-rgb) / 0.15);
   }
 
   .send-btn:disabled {
-    background-color: rgba(250, 255, 105, 0.04);
-    border: 1px solid rgba(250, 255, 105, 0.08);
+    background-color: rgb(var(--color-primary-rgb) / 0.04);
+    border: 1px solid rgb(var(--color-primary-rgb) / 0.08);
     color: var(--color-muted-soft);
     box-shadow: none;
     cursor: not-allowed;
   }
 
   .stop-btn {
-    background-color: rgba(239, 68, 68, 0.1) !important;
-    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    background-color: rgb(var(--color-error-rgb) / 0.1) !important;
+    border: 1px solid rgb(var(--color-error-rgb) / 0.3) !important;
     color: var(--color-error) !important;
     box-shadow: none !important;
   }
   .stop-btn:hover {
-    background-color: rgba(239, 68, 68, 0.2) !important;
+    background-color: rgb(var(--color-error-rgb) / 0.2) !important;
     border-color: var(--color-error) !important;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.15) !important;
+    box-shadow: 0 0 10px rgb(var(--color-error-rgb) / 0.15) !important;
   }
 
   /* Spinner Loader */
   .spinner-neon {
     width: 32px;
     height: 32px;
-    border: 2px solid rgba(250, 255, 105, 0.05);
+    border: 2px solid rgb(var(--color-primary-rgb) / 0.05);
     border-top: 2px solid var(--color-primary);
     border-radius: 50%;
     animation: spin 0.8s cubic-bezier(0.5, 0.1, 0.1, 0.9) infinite;
     margin: 0 auto;
-    box-shadow: 0 0 15px rgba(250, 255, 105, 0.1), inset 0 0 10px rgba(250, 255, 105, 0.05);
+    box-shadow: 0 0 15px rgb(var(--color-primary-rgb) / 0.1), inset 0 0 10px rgb(var(--color-primary-rgb) / 0.05);
   }
   @keyframes spin {
     0% { transform: rotate(0deg); }
@@ -1189,7 +1189,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     border-radius: 0 !important;
     font-size: 12px;
     line-height: 1.5;
-    color: #e6e6e6;
+    color: var(--color-body-strong);
     display: block;
     font-family: var(--font-family-mono);
   }
@@ -1218,7 +1218,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     font-size: 12.5px;
   }
   :global(.markdown-body th) {
-    background-color: rgba(250, 255, 105, 0.03);
+    background-color: rgb(var(--color-primary-rgb) / 0.03);
     border: 1px solid var(--color-hairline-strong);
     padding: 8px 12px;
     text-align: left;
@@ -1236,6 +1236,6 @@ Your goal is to answer the user's questions about this SEO audit, provide action
     background-color: rgba(255, 255, 255, 0.01);
   }
   :global(.markdown-body tr:hover) {
-    background-color: rgba(250, 255, 105, 0.02);
+    background-color: rgb(var(--color-primary-rgb) / 0.02);
   }
 </style>

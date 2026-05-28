@@ -390,6 +390,9 @@
     margin-bottom: var(--spacing-md);
   }
 
+  /* SERP / Facebook / Twitter preview mimics: the literal hex colors below
+     (Google blues/greys, Facebook #3b5998, Twitter dark blues, white SERP bg)
+     are deliberate external-brand mimicry and intentionally NOT design tokens. */
   /* SERP Box styles */
   .serp-box {
     background-color: #ffffff;
@@ -590,8 +593,9 @@
     color: var(--color-body-strong);
   }
 
-  .depth-1 { margin-left: 0; border-left-color: var(--color-primary); background-color: rgba(250, 255, 105, 0.03); }
-  .depth-2 { margin-left: var(--spacing-md); border-left-color: #3b82f6; }
+  .depth-1 { margin-left: 0; border-left-color: var(--color-primary); background-color: rgb(var(--color-primary-rgb) / 0.03); }
+  .depth-2 { margin-left: var(--spacing-md); border-left-color: var(--color-accent-blue); }
+  /* #10b981 (emerald-600) is intentionally distinct from --color-success (#22c55e). */
   .depth-3 { margin-left: calc(var(--spacing-md) * 2); border-left-color: #10b981; }
   .depth-4 { margin-left: calc(var(--spacing-md) * 3); }
   .depth-5 { margin-left: calc(var(--spacing-md) * 4); }
@@ -605,11 +609,12 @@
     font-family: var(--font-family-mono);
   }
 
-  .h1-badge { background-color: rgba(250, 255, 105, 0.15); color: var(--color-primary); }
-  .h2-badge { background-color: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+  .h1-badge { background-color: rgb(var(--color-primary-rgb) / 0.15); color: var(--color-primary); }
+  .h2-badge { background-color: rgb(var(--color-accent-blue-rgb) / 0.15); color: var(--color-accent-blue); }
+  /* #10b981 (emerald-600) is intentionally distinct from --color-success (#22c55e). */
   .h3-badge { background-color: rgba(16, 185, 129, 0.15); color: #10b981; }
   .h4-badge, .h5-badge, .h6-badge { background-color: var(--color-surface-soft); color: var(--color-muted); }
-  .error-badge { background-color: rgba(239, 68, 68, 0.15); color: var(--color-error); }
+  .error-badge { background-color: rgb(var(--color-error-rgb) / 0.15); color: var(--color-error); }
 
   .node-text {
     flex: 1;
@@ -626,8 +631,8 @@
   .font-italic { font-style: italic; }
 
   .heading-warnings-box {
-    background-color: rgba(245, 158, 11, 0.05);
-    border: 1px solid rgba(245, 158, 11, 0.2);
+    background-color: rgb(var(--color-warning-rgb) / 0.05);
+    border: 1px solid rgb(var(--color-warning-rgb) / 0.2);
     border-radius: var(--rounded-md);
     padding: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
@@ -704,8 +709,8 @@
   }
 
   .schema-cards-container :global(.schema-collapsible-card:hover) {
-    border-color: rgba(250, 255, 105, 0.4);
-    box-shadow: 0 0 12px rgba(250, 255, 105, 0.06);
+    border-color: rgb(var(--color-primary-rgb) / 0.4);
+    box-shadow: 0 0 12px rgb(var(--color-primary-rgb) / 0.06);
   }
 
   /* The header button lives inside the Collapsible child component, so target it globally. */
@@ -759,8 +764,8 @@
     font-size: 11px;
     font-weight: 600;
     color: var(--color-success);
-    background-color: rgba(34, 197, 94, 0.08);
-    border: 1px solid rgba(34, 197, 94, 0.25);
+    background-color: rgb(var(--color-success-rgb) / 0.08);
+    border: 1px solid rgb(var(--color-success-rgb) / 0.25);
     padding: 3px 10px;
     border-radius: var(--rounded-pill);
     margin-left: auto;
