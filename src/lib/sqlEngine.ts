@@ -1,17 +1,29 @@
 import type { AuditResults } from './seoEngine';
 import initSqlJs from 'sql.js';
+import type { Database, SqlJsStatic, SqlValue } from 'sql.js';
+
+/**
+ * A scalar cell in a query result. sql.js's own `SqlValue` also permits
+ * `Uint8Array` (BLOBs), but every column in our materialized schema is
+ * TEXT/INTEGER/NULL, so the rendered/exported result is always one of these.
+ */
+export type CellValue = string | number | null;
 
 export interface SQLQueryResult {
   columns: string[];
-  rows: Record<string, any>[];
+  rows: Record<string, CellValue>[];
   count: number;
   error?: string;
   executionTimeMs?: number;
 }
 
-let SQL: any = null;
-let activeDb: any = null;
-let activeResults: AuditResults | null = null;
+let SQL: SqlJsStatic | null = null;
+let activeDb: Database | null = null;
+/**
+ * Content-aware cache key for the currently materialized database (see
+ * `cacheKeyFor`). `null` means no database has been built yet.
+ */
+let activeCacheKey: string | null = null;
 
 /**
  * Initializes the sql.js engine by loading the WASM binary.
@@ -27,15 +39,34 @@ export async function initSqlEngine(): Promise<void> {
 }
 
 /**
+ * Builds a cheap, content-aware cache key for an audit so we only rebuild the
+ * in-memory database when the data it would contain has actually changed.
+ *
+ * Reference equality is insufficient: `validateLinks()` mutates link statuses
+ * IN PLACE on the same array, and loading a deep-cloned history item produces a
+ * NEW object for identical data. The key therefore combines:
+ *   - url + timestamp  -> distinguishes different audits (incl. re-clones)
+ *   - links.length     -> total links materialized into the `links` table
+ *   - validatedCount   -> number of links whose status has resolved, so the db
+ *                         is rebuilt after async link validation completes (the
+ *                         `status_state` column would otherwise be stale)
+ */
+export function cacheKeyFor(results: AuditResults): string {
+  const validatedCount = results.links.filter(l => l.statusState !== 'pending').length;
+  return `${results.url}|${results.timestamp}|${results.links.length}|${validatedCount}`;
+}
+
+/**
  * Sets up and populates the in-memory SQLite database from AuditResults.
  */
-function prepareDatabase(results: AuditResults) {
+function prepareDatabase(results: AuditResults): Database {
   if (!SQL) {
     throw new Error('SQLite engine is not initialized. Please wait a moment and try again.');
   }
 
-  // If database already exists and results are the same, don't recreate it
-  if (activeDb && activeResults === results) {
+  // Reuse the existing database when its content-aware key is unchanged.
+  const cacheKey = cacheKeyFor(results);
+  if (activeDb && activeCacheKey === cacheKey) {
     return activeDb;
   }
 
@@ -198,7 +229,7 @@ function prepareDatabase(results: AuditResults) {
   imagesStmt.free();
 
   activeDb = db;
-  activeResults = results;
+  activeCacheKey = cacheKey;
   return db;
 }
 
@@ -239,10 +270,12 @@ export function executeSQLQuery(query: string, results: AuditResults): SQLQueryR
     const columns = res[0].columns;
     const values = res[0].values;
 
-    const rows = values.map((rowArr: any[]) => {
-      const rowObj: Record<string, any> = {};
+    const rows = values.map((rowArr: SqlValue[]) => {
+      const rowObj: Record<string, CellValue> = {};
       columns.forEach((colName: string, idx: number) => {
-        rowObj[colName] = rowArr[idx];
+        const cell = rowArr[idx];
+        // Our schema never stores BLOBs; coerce defensively to keep CellValue honest.
+        rowObj[colName] = cell instanceof Uint8Array ? `[${cell.length} bytes]` : cell;
       });
       return rowObj;
     });
@@ -253,13 +286,13 @@ export function executeSQLQuery(query: string, results: AuditResults): SQLQueryR
       count: rows.length,
       executionTimeMs
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const endTime = performance.now();
     return {
       columns: [],
       rows: [],
       count: 0,
-      error: err.message || 'Unknown database error',
+      error: err instanceof Error ? err.message : 'Unknown database error',
       executionTimeMs: parseFloat((endTime - startTime).toFixed(2))
     };
   }

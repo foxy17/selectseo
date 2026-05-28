@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	buildProxyFetchUrl,
 	calculateGrade,
+	collectJsonLdSchemas,
+	estimateReadingLevel,
 	fetchPageSpeed,
 	recalculateOverallScore,
 	summarizeAudit
@@ -250,5 +253,107 @@ describe('recalculateOverallScore', () => {
 		const audit = makeAudit({ score: 90, links: [link(1, 'broken')] });
 		recalculateOverallScore(audit);
 		expect(audit.score).toBe(90);
+	});
+});
+
+describe('buildProxyFetchUrl', () => {
+	const target = 'https://target.example/path?q=1&x=2';
+	const encoded = encodeURIComponent(target);
+
+	it('returns the target unchanged when proxyUrl is empty', () => {
+		expect(buildProxyFetchUrl('', target)).toBe(target);
+	});
+
+	// The two REAL presets from settings.svelte.ts PROXY_PRESETS.
+	it('appends the encoded target for the corsproxy.io preset', () => {
+		const proxy = 'https://corsproxy.io/?url=';
+		expect(buildProxyFetchUrl(proxy, target)).toBe(proxy + encoded);
+	});
+
+	it('appends the encoded target for the allorigins preset', () => {
+		const proxy = 'https://api.allorigins.win/raw?url=';
+		expect(buildProxyFetchUrl(proxy, target)).toBe(proxy + encoded);
+	});
+
+	it('substitutes the encoded target into a {url} template', () => {
+		const proxy = 'https://proxy.example/fetch/{url}/done';
+		expect(buildProxyFetchUrl(proxy, target)).toBe(`https://proxy.example/fetch/${encoded}/done`);
+	});
+
+	it('treats any other proxy string as a prefix (never drops the target)', () => {
+		const proxy = 'https://proxy.example/get?u=';
+		const result = buildProxyFetchUrl(proxy, target);
+		expect(result).toBe(proxy + encoded);
+		expect(result).toContain(encoded);
+	});
+});
+
+describe('estimateReadingLevel', () => {
+	it('returns N/A for empty / whitespace-only text', () => {
+		expect(estimateReadingLevel('')).toBe('N/A');
+		expect(estimateReadingLevel('   ')).toBe('N/A');
+	});
+
+	it('returns a non-empty grade string for short text without throwing', () => {
+		const grade = estimateReadingLevel('The cat sat on the mat.');
+		expect(typeof grade).toBe('string');
+		expect(grade.length).toBeGreaterThan(0);
+		expect(grade).not.toBe('N/A');
+	});
+
+	it('handles words ending in -es/-ed/-e without throwing (no double-decrement crash)', () => {
+		// "houses" (-es), "raced" (-ed) and "make" (-e) exercise all suffix branches.
+		const grade = estimateReadingLevel(
+			'The houses raced past as people make their journeys across distant landscapes.'
+		);
+		expect(typeof grade).toBe('string');
+		expect(grade.length).toBeGreaterThan(0);
+	});
+});
+
+describe('collectJsonLdSchemas', () => {
+	it('collects @type across an array, an @graph, and an array-valued @type', () => {
+		const parsed = [
+			{ '@type': 'WebSite', name: 'Site' },
+			{
+				'@graph': [
+					{ '@type': 'Organization', name: 'Org' },
+					{ '@type': 'BreadcrumbList' }
+				]
+			},
+			{ '@type': ['Article', 'NewsArticle'], headline: 'Hi' }
+		];
+
+		const collected = collectJsonLdSchemas(parsed);
+		expect(collected.map(s => s.type)).toEqual([
+			'WebSite',
+			'Organization',
+			'BreadcrumbList',
+			'Article',
+			'NewsArticle'
+		]);
+	});
+
+	it('handles a single object node and a top-level @graph wrapper', () => {
+		expect(collectJsonLdSchemas({ '@type': 'FAQPage' }).map(s => s.type)).toEqual(['FAQPage']);
+		expect(
+			collectJsonLdSchemas({ '@graph': [{ '@type': 'Product' }] }).map(s => s.type)
+		).toEqual(['Product']);
+	});
+
+	it('skips nodes without an @type and ignores non-string @type entries', () => {
+		const collected = collectJsonLdSchemas([
+			{ name: 'no type here' },
+			{ '@type': ['Valid', 42, null, 'AlsoValid'] }
+		]);
+		expect(collected.map(s => s.type)).toEqual(['Valid', 'AlsoValid']);
+	});
+
+	it('records the pretty-printed source node as code for array @type entries', () => {
+		const collected = collectJsonLdSchemas({ '@type': ['A', 'B'], x: 1 });
+		expect(collected).toHaveLength(2);
+		// Both share the same source node code.
+		expect(collected[0].code).toBe(collected[1].code);
+		expect(JSON.parse(collected[0].code)).toEqual({ '@type': ['A', 'B'], x: 1 });
 	});
 });

@@ -173,6 +173,50 @@ export interface AuditResults {
 }
 
 /**
+ * Recommended character-length bounds for the <title> and meta description.
+ * Outside these ranges the audit flags a (non-fatal) warning. Values are the
+ * commonly cited SERP-truncation thresholds — unchanged from prior inline use.
+ */
+const TITLE_LENGTH = { min: 30, max: 60 } as const;
+const DESCRIPTION_LENGTH = { min: 110, max: 160 } as const;
+
+/**
+ * Points subtracted from the AI-discoverability (AEO) score for each failing
+ * heuristic. Identical to the prior inline literals — naming only, no tuning.
+ */
+const AEO_PENALTIES = {
+  qaFormatting: 20,
+  scannability: 20,
+  semanticHtml: 15,
+  targetSchema: 25,
+  robotsTxtAi: 20
+} as const;
+
+/**
+ * Points subtracted from the overall on-page SEO score for each finding.
+ * Centralized for transparency; values are unchanged from the prior inline
+ * literals so the computed score is byte-for-byte identical.
+ */
+const SEO_DEDUCTIONS = {
+  titleMissing: 15,
+  titleWarning: 5,
+  descriptionMissing: 12,
+  descriptionWarning: 4,
+  canonicalMissing: 8,
+  headingsError: 10,
+  headingsWarning: 4,
+  imageAltsError: 10,
+  imageAltsWarning: 5,
+  openGraphMissing: 5,
+  noSchema: 3,
+  viewportError: 10,
+  languageError: 5,
+  robotsMetaError: 50,
+  robotsMetaWarning: 10,
+  faviconWarning: 2
+} as const;
+
+/**
  * Normalizes URL relative paths relative to target base URL
  */
 function normalizeUrl(href: string, baseUrl: string): string {
@@ -184,23 +228,28 @@ function normalizeUrl(href: string, baseUrl: string): string {
 }
 
 /**
- * Helper to build correct proxy url. Detects if proxyUrl already ends with or contains 'url='
+ * Builds the URL used to fetch `targetUrl` through a CORS proxy.
+ *
+ * Contract (single, explicit rule — no heuristics):
+ *  - If `proxyUrl` is empty/falsy, fetch the target directly.
+ *  - If `proxyUrl` contains the literal placeholder `{url}`, substitute the
+ *    URL-encoded target for it (template form).
+ *  - Otherwise treat `proxyUrl` as a PREFIX and append the URL-encoded target:
+ *    `proxyUrl + encodeURIComponent(targetUrl)`.
+ *
+ * The prefix rule is what the real PROXY_PRESETS rely on: both
+ * `https://corsproxy.io/?url=` and `https://api.allorigins.win/raw?url=`
+ * end with a trailing `url=`, so appending the encoded target yields the
+ * correct request. The encoded target is never dropped.
  */
 export function buildProxyFetchUrl(proxyUrl: string, targetUrl: string): string {
   if (!proxyUrl) return targetUrl;
-  
-  // If the proxy URL already ends with a parameter pattern e.g. "url=" or "q="
-  if (/[?&]\w+=$/.test(proxyUrl)) {
-    return `${proxyUrl}${encodeURIComponent(targetUrl)}`;
+
+  if (proxyUrl.includes('{url}')) {
+    return proxyUrl.replace('{url}', encodeURIComponent(targetUrl));
   }
-  
-  // If the proxy URL already contains "url=" or other query parameters
-  if (proxyUrl.includes('url=')) {
-    return proxyUrl;
-  }
-  
-  const separator = proxyUrl.includes('?') ? '&' : '?';
-  return `${proxyUrl}${separator}url=${encodeURIComponent(targetUrl)}`;
+
+  return `${proxyUrl}${encodeURIComponent(targetUrl)}`;
 }
 
 /**
@@ -263,7 +312,12 @@ function getVisibleText(doc: Document): string {
   return clone.body ? clone.body.textContent || '' : '';
 }
 
-function estimateReadingLevel(text: string): string {
+/**
+ * Rough Flesch-Kincaid reading-grade heuristic. The syllable estimate is
+ * deliberately approximate (vowel-group counting with a few suffix tweaks) and
+ * is only meant to bucket text into broad difficulty bands, NOT to be exact.
+ */
+export function estimateReadingLevel(text: string): string {
   const words = text.trim().split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return 'N/A';
   const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
@@ -277,9 +331,14 @@ function estimateReadingLevel(text: string): string {
     }
     const vowelGroups = cleanWord.match(/[aeiouy]+/g);
     let count = vowelGroups ? vowelGroups.length : 1;
-    if (cleanWord.endsWith('e')) count--;
-    if (cleanWord.endsWith('es')) count--;
-    if (cleanWord.endsWith('ed')) count--;
+    // Silent-suffix adjustment. Mutually exclusive so we never double-decrement:
+    // a word ending in "-es"/"-ed" also technically ends in "-e", so check the
+    // two-letter suffixes FIRST and only fall back to the lone "-e" otherwise.
+    if (cleanWord.endsWith('es') || cleanWord.endsWith('ed')) {
+      count--;
+    } else if (cleanWord.endsWith('e')) {
+      count--;
+    }
     syllableCount += Math.max(1, count);
   });
   const wordCount = words.length;
@@ -289,6 +348,62 @@ function estimateReadingLevel(text: string): string {
   if (score <= 8) return 'Average (6th-8th Grade)';
   if (score <= 12) return 'Medium (High School)';
   return 'Difficult (College/Graduate)';
+}
+
+/** A node in a parsed JSON-LD document (loosely typed; keys are dynamic). */
+type JsonLdNode = Record<string, unknown>;
+
+/** One collected schema: its primary `@type` plus the source node, pretty-printed. */
+export interface CollectedSchema {
+  type: string;
+  code: string;
+}
+
+/**
+ * Walks a parsed JSON-LD value and collects every schema node's `@type`(s),
+ * handling the shapes that appear in real-world markup:
+ *  - a single object node
+ *  - a top-level array of nodes
+ *  - an `@graph` wrapper (at the top level OR nested inside array items)
+ *  - `@type` being a string OR an array of strings (both valid JSON-LD)
+ *
+ * Each distinct `@type` string produces one CollectedSchema whose `code` is the
+ * pretty-printed source node it came from. Nodes without an `@type` are skipped.
+ */
+export function collectJsonLdSchemas(parsed: unknown): CollectedSchema[] {
+  const collected: CollectedSchema[] = [];
+
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+
+    const node = value as JsonLdNode;
+
+    // Recurse into a nested @graph wrapper if present.
+    if (Array.isArray(node['@graph'])) {
+      node['@graph'].forEach(visit);
+    }
+
+    const rawType = node['@type'];
+    const types: string[] = Array.isArray(rawType)
+      ? rawType.filter((t): t is string => typeof t === 'string')
+      : typeof rawType === 'string'
+        ? [rawType]
+        : [];
+
+    if (types.length > 0) {
+      const code = JSON.stringify(node, null, 2);
+      types.forEach(type => {
+        collected.push({ type, code });
+      });
+    }
+  };
+
+  visit(parsed);
+  return collected;
 }
 
 /**
@@ -353,10 +468,10 @@ export async function runSEOAudit(
   if (titleLength === 0) {
     titleStatus = 'missing';
     titleMessage = 'Title tag is missing or empty. Crucial for SEO!';
-  } else if (titleLength < 30) {
+  } else if (titleLength < TITLE_LENGTH.min) {
     titleStatus = 'warning';
     titleMessage = `Title is too short (${titleLength} chars). Aim for 50-60 characters.`;
-  } else if (titleLength > 60) {
+  } else if (titleLength > TITLE_LENGTH.max) {
     titleStatus = 'warning';
     titleMessage = `Title is too long (${titleLength} chars). Aim for 50-60 characters to avoid truncation.`;
   }
@@ -373,10 +488,10 @@ export async function runSEOAudit(
   if (descLength === 0) {
     descStatus = 'missing';
     descMessage = 'Meta description tag is missing. Search engines may use random snippets instead.';
-  } else if (descLength < 110) {
+  } else if (descLength < DESCRIPTION_LENGTH.min) {
     descStatus = 'warning';
     descMessage = `Description is too short (${descLength} chars). Aim for 150-160 characters.`;
-  } else if (descLength > 160) {
+  } else if (descLength > DESCRIPTION_LENGTH.max) {
     descStatus = 'warning';
     descMessage = `Description is too long (${descLength} chars). Aim for 150-160 characters to avoid truncation.`;
   }
@@ -506,7 +621,9 @@ export async function runSEOAudit(
   const visibleText = getVisibleText(doc);
   const words = visibleText.trim().split(/\s+/).filter(w => w.length > 0);
   const wordCount = words.length;
-  const contentRatio = parseFloat(((visibleText.length / htmlSize) * 100).toFixed(1)) || 0;
+  // Explicit divide-by-zero guard: an empty HTML body would make the ratio NaN.
+  const contentRatio =
+    htmlSize > 0 ? parseFloat(((visibleText.length / htmlSize) * 100).toFixed(1)) : 0;
   const readingLevel = estimateReadingLevel(visibleText);
   const language = doc.documentElement.getAttribute('lang') || 'unknown';
 
@@ -541,28 +658,16 @@ export async function runSEOAudit(
     try {
       const content = script.textContent || '';
       if (!content.trim()) return;
-      const parsed = JSON.parse(content);
-      
-      const addSchema = (item: any) => {
-        const type = item['@type'];
-        if (type) {
-          schemaTypes.push(String(type));
-          schemas.push({
-            type: String(type),
-            code: JSON.stringify(item, null, 2)
-          });
-        }
-      };
+      const parsed: unknown = JSON.parse(content);
 
-      if (Array.isArray(parsed)) {
-        parsed.forEach(addSchema);
-      } else if (parsed['@graph'] && Array.isArray(parsed['@graph'])) {
-        parsed['@graph'].forEach(addSchema);
-      } else {
-        addSchema(parsed);
-      }
+      // Correct, recursive @type extraction (handles arrays, @graph, type[]).
+      collectJsonLdSchemas(parsed).forEach(schema => {
+        schemaTypes.push(schema.type);
+        schemas.push(schema);
+      });
     } catch {
-      // Ignored malformed schema script tags
+      // Swallow genuine JSON.parse errors: a single malformed inline schema
+      // block must not abort the whole audit.
     }
   });
 
@@ -631,11 +736,11 @@ export async function runSEOAudit(
     : { status: 'warning', message: 'Missing high-value AEO schemas (FAQPage, Article, Organization, etc.).' };
 
   let aiScore = 100;
-  if (qaFormatting.status === 'warning') aiScore -= 20;
-  if (scannability.status === 'warning') aiScore -= 20;
-  if (semanticHtml.status === 'warning') aiScore -= 15;
-  if (targetSchema.status === 'warning') aiScore -= 25;
-  if (robotsTxtAi.status === 'warning') aiScore -= 20;
+  if (qaFormatting.status === 'warning') aiScore -= AEO_PENALTIES.qaFormatting;
+  if (scannability.status === 'warning') aiScore -= AEO_PENALTIES.scannability;
+  if (semanticHtml.status === 'warning') aiScore -= AEO_PENALTIES.semanticHtml;
+  if (targetSchema.status === 'warning') aiScore -= AEO_PENALTIES.targetSchema;
+  if (robotsTxtAi.status === 'warning') aiScore -= AEO_PENALTIES.robotsTxtAi;
 
   const aiDiscoverability: AIDiscoverabilityAudit = {
     score: Math.max(0, aiScore),
@@ -718,30 +823,30 @@ export async function runSEOAudit(
 
   // Calculate Initial Numeric Score
   let score = 100;
-  
-  if (titleAudit.status === 'missing') score -= 15;
-  else if (titleAudit.status === 'warning') score -= 5;
 
-  if (descriptionAudit.status === 'missing') score -= 12;
-  else if (descriptionAudit.status === 'warning') score -= 4;
+  if (titleAudit.status === 'missing') score -= SEO_DEDUCTIONS.titleMissing;
+  else if (titleAudit.status === 'warning') score -= SEO_DEDUCTIONS.titleWarning;
 
-  if (canonicalAudit.status === 'missing') score -= 8;
+  if (descriptionAudit.status === 'missing') score -= SEO_DEDUCTIONS.descriptionMissing;
+  else if (descriptionAudit.status === 'warning') score -= SEO_DEDUCTIONS.descriptionWarning;
 
-  if (headingAudit.status === 'error') score -= 10;
-  else if (headingAudit.status === 'warning') score -= 4;
+  if (canonicalAudit.status === 'missing') score -= SEO_DEDUCTIONS.canonicalMissing;
 
-  if (imageAltsAudit.status === 'error') score -= 10;
-  else if (imageAltsAudit.status === 'warning') score -= 5;
+  if (headingAudit.status === 'error') score -= SEO_DEDUCTIONS.headingsError;
+  else if (headingAudit.status === 'warning') score -= SEO_DEDUCTIONS.headingsWarning;
 
-  if (openGraphAudit.status === 'missing') score -= 5;
+  if (imageAltsAudit.status === 'error') score -= SEO_DEDUCTIONS.imageAltsError;
+  else if (imageAltsAudit.status === 'warning') score -= SEO_DEDUCTIONS.imageAltsWarning;
 
-  if (schemaTypes.length === 0) score -= 3;
+  if (openGraphAudit.status === 'missing') score -= SEO_DEDUCTIONS.openGraphMissing;
 
-  if (viewportAudit.status === 'error') score -= 10;
-  if (languageAudit.status === 'error') score -= 5;
-  if (robotsMetaAudit.status === 'error') score -= 50;
-  if (robotsMetaAudit.status === 'warning') score -= 10;
-  if (faviconAudit.status === 'warning') score -= 2;
+  if (schemaTypes.length === 0) score -= SEO_DEDUCTIONS.noSchema;
+
+  if (viewportAudit.status === 'error') score -= SEO_DEDUCTIONS.viewportError;
+  if (languageAudit.status === 'error') score -= SEO_DEDUCTIONS.languageError;
+  if (robotsMetaAudit.status === 'error') score -= SEO_DEDUCTIONS.robotsMetaError;
+  if (robotsMetaAudit.status === 'warning') score -= SEO_DEDUCTIONS.robotsMetaWarning;
+  if (faviconAudit.status === 'warning') score -= SEO_DEDUCTIONS.faviconWarning;
 
   score = Math.max(0, Math.min(100, score));
 
