@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AuditResults, LinkItem } from '$lib/seoEngine';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
+  import { copyToClipboard, downloadFile, toCsv } from '$lib/exportUtils';
 
   let { 
     auditResults, 
@@ -20,6 +21,21 @@
   let sortColumn = $state<'href' | 'text' | 'type' | 'secure' | 'status' | 'responseTime'>('status');
   let sortDirection = $state<'asc' | 'desc' | 'none'>('asc');
   let expandedRow = $state<number | null>(null);
+
+  // Transient, non-blocking status message for copy actions
+  let copyStatus = $state('');
+  let copyStatusError = $state(false);
+  let copyStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function showCopyStatus(message: string, isError = false) {
+    copyStatus = message;
+    copyStatusError = isError;
+    clearTimeout(copyStatusTimer);
+    copyStatusTimer = setTimeout(() => {
+      copyStatus = '';
+      copyStatusError = false;
+    }, 2000);
+  }
 
   function toggleRow(id: number) {
     if (expandedRow === id) expandedRow = null;
@@ -106,42 +122,37 @@
   });
 
   // Bulk actions
-  function copyBrokenLinks() {
+  async function copyBrokenLinks() {
     const brokenUrls = auditResults.links.filter(l => l.statusState === 'broken').map(l => l.href).join('\n');
     if (!brokenUrls) return;
-    navigator.clipboard.writeText(brokenUrls);
-    alert('Copied all broken links to clipboard!');
+    const ok = await copyToClipboard(brokenUrls);
+    showCopyStatus(ok ? 'Copied all broken links!' : 'Copy failed', !ok);
   }
 
   function exportCSV() {
     const headers = ['Anchor Text', 'URL', 'Scope', 'Security', 'HTTP Status', 'Response Time (ms)', 'Redirect Destination'];
     const rows = auditResults.links.map(l => [
-      `"${(l.text || '').replace(/"/g, '""')}"`,
-      `"${l.href}"`,
+      l.text || '',
+      l.href,
       l.isExternal ? 'external' : 'internal',
       l.isSecure ? 'HTTPS' : 'HTTP',
       l.status || 'N/A',
       l.responseTime || 0,
-      l.redirectDestination ? `"${l.redirectDestination}"` : ''
-    ].join(','));
+      l.redirectDestination || ''
+    ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
-    const link = document.createElement('a');
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', 'crawled-links.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = toCsv([headers, ...rows]);
+    downloadFile('crawled-links.csv', 'text/csv;charset=utf-8', csvContent);
   }
 
-  function copyAsMarkdown() {
+  async function copyAsMarkdown() {
     let md = '| Anchor Text | URL | Scope | Security | HTTP Status | Response Time |\n';
     md += '|---|---|---|---|---|---|\n';
     auditResults.links.forEach(l => {
       md += `| ${(l.text || '[No text]').replace(/\|/g, '\\|')} | [Link](${l.href}) | ${l.isExternal ? 'External' : 'Internal'} | ${l.isSecure ? 'HTTPS' : 'HTTP'} | ${l.status || 'N/A'} | ${l.responseTime ? l.responseTime + 'ms' : 'N/A'} |\n`;
     });
-    navigator.clipboard.writeText(md);
-    alert('Copied Markdown table to clipboard!');
+    const ok = await copyToClipboard(md);
+    showCopyStatus(ok ? 'Copied Markdown table!' : 'Copy failed', !ok);
   }
 </script>
 
@@ -258,6 +269,9 @@
     <button class="btn btn-secondary btn-sm" onclick={copyAsMarkdown}>Copy Markdown</button>
     {#if broken > 0}
       <button class="btn btn-primary btn-sm btn-error-bg" onclick={copyBrokenLinks}>Copy Broken URLs</button>
+    {/if}
+    {#if copyStatus}
+      <span class="copy-status" class:copy-status-error={copyStatusError} role="status" aria-live="polite">{copyStatus}</span>
     {/if}
   </div>
 
@@ -536,7 +550,19 @@
   /* Bulk Actions */
   .bulk-actions {
     display: flex;
+    align-items: center;
     gap: var(--spacing-xs);
+  }
+
+  .copy-status {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-success);
+    align-self: center;
+  }
+
+  .copy-status-error {
+    color: var(--color-error);
   }
 
   .btn-sm {

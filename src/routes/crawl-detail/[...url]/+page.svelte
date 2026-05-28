@@ -18,6 +18,7 @@
   import { settings } from '$lib/settings.svelte';
   import { loadHistory, upsert } from '$lib/crawlHistory';
   import type { CrawlHistoryItem } from '$lib/crawlHistory';
+  import { downloadFile, toCsv } from '$lib/exportUtils';
   import { appState } from '$lib/sharedState.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
@@ -308,23 +309,14 @@
 
   function exportQueryToCSV() {
     if (!sqlResult || sqlResult.rows.length === 0) return;
-    
-    const headers = sqlResult.columns.join(',');
-    const rows = sqlResult.rows.map(row => 
-      sqlResult!.columns.map(col => {
-        const val = row[col] === null ? 'NULL' : row[col];
-        return typeof val === 'string' ? `"${val.replace(/"/g, '""')}"` : val;
-      }).join(',')
+
+    const { columns } = sqlResult;
+    const rows = sqlResult.rows.map(row =>
+      columns.map(col => (row[col] === null ? 'NULL' : row[col]))
     );
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `sql-query-results.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = toCsv([columns, ...rows]);
+    downloadFile('sql-query-results.csv', 'text/csv;charset=utf-8', csvContent);
   }
 
   function handlePDFExport() {
