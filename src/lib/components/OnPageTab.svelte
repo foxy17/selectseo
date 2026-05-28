@@ -2,6 +2,7 @@
   import type { AuditResults } from '$lib/seoEngine';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
   import Collapsible from '$lib/components/Collapsible.svelte';
+  import SegmentedToggle from '$lib/components/SegmentedToggle.svelte';
 
   let { auditResults }: { auditResults: AuditResults } = $props();
 
@@ -91,10 +92,14 @@
     <div class="preview-card card-dark" id="serp-preview-card">
       <div class="card-header-row">
         <h3 class="title-md">Google SERP Preview</h3>
-        <div class="toggle-buttons font-mono">
-          <button class="toggle-btn" class:active={serpMode === 'desktop'} onclick={() => serpMode = 'desktop'}>Desktop</button>
-          <button class="toggle-btn" class:active={serpMode === 'mobile'} onclick={() => serpMode = 'mobile'}>Mobile</button>
-        </div>
+        <SegmentedToggle
+          ariaLabel="SERP preview mode"
+          options={[
+            { label: 'Desktop', value: 'desktop' },
+            { label: 'Mobile', value: 'mobile' }
+          ]}
+          bind:value={serpMode}
+        />
       </div>
       
       <div class="serp-box" class:serp-mobile={serpMode === 'mobile'}>
@@ -137,10 +142,14 @@
     <div class="preview-card card-dark">
       <div class="card-header-row">
         <h3 class="title-md">Social Media Share Preview</h3>
-        <div class="toggle-buttons font-mono">
-          <button class="toggle-btn" class:active={socialMode === 'facebook'} onclick={() => socialMode = 'facebook'}>Facebook</button>
-          <button class="toggle-btn" class:active={socialMode === 'twitter'} onclick={() => socialMode = 'twitter'}>Twitter</button>
-        </div>
+        <SegmentedToggle
+          ariaLabel="Social preview platform"
+          options={[
+            { label: 'Facebook', value: 'facebook' },
+            { label: 'Twitter', value: 'twitter' }
+          ]}
+          bind:value={socialMode}
+        />
       </div>
 
       {#if socialMode === 'facebook'}
@@ -379,32 +388,6 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--spacing-md);
-  }
-
-  /* Previews Switcher */
-  .toggle-buttons {
-    display: flex;
-    background-color: var(--color-surface-soft);
-    padding: 2px;
-    border-radius: var(--rounded-sm);
-    border: 1px solid var(--color-hairline);
-  }
-
-  .toggle-btn {
-    background: none;
-    border: none;
-    padding: 4px 12px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--color-muted);
-    cursor: pointer;
-    border-radius: var(--rounded-xs);
-    transition: color 0.15s ease, background-color 0.15s ease;
-  }
-
-  .toggle-btn.active {
-    background-color: var(--color-surface-card);
-    color: var(--color-primary);
   }
 
   /* SERP Box styles */

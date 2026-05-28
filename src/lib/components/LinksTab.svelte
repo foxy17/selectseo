@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AuditResults, LinkItem } from '$lib/seoEngine';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
+  import SegmentedToggle from '$lib/components/SegmentedToggle.svelte';
   import { copyToClipboard, downloadFile, toCsv } from '$lib/exportUtils';
 
   let { 
@@ -234,23 +235,18 @@
 
   <!-- Filter Bar & text search -->
   <div class="filter-actions-bar mt-4">
-    <div class="filter-buttons font-mono">
-      <button class="filter-btn" class:active={activeFilter === 'all'} onclick={() => activeFilter = 'all'}>
-        All <span class="sup">{total}</span>
-      </button>
-      <button class="filter-btn" class:active={activeFilter === 'internal'} onclick={() => activeFilter = 'internal'}>
-        Internal <span class="sup">{internal}</span>
-      </button>
-      <button class="filter-btn" class:active={activeFilter === 'external'} onclick={() => activeFilter = 'external'}>
-        External <span class="sup">{external}</span>
-      </button>
-      <button class="filter-btn" class:active={activeFilter === 'broken'} onclick={() => activeFilter = 'broken'}>
-        Broken <span class="sup text-error">{broken}</span>
-      </button>
-      <button class="filter-btn" class:active={activeFilter === 'redirects'} onclick={() => activeFilter = 'redirects'}>
-        Redirects <span class="sup text-primary">{redirects}</span>
-      </button>
-    </div>
+    <SegmentedToggle
+      variant="filter"
+      ariaLabel="Filter links"
+      options={[
+        { label: 'All', value: 'all', sup: total },
+        { label: 'Internal', value: 'internal', sup: internal },
+        { label: 'External', value: 'external', sup: external },
+        { label: 'Broken', value: 'broken', sup: broken, supClass: 'text-error' },
+        { label: 'Redirects', value: 'redirects', sup: redirects, supClass: 'text-primary' }
+      ]}
+      bind:value={activeFilter}
+    />
 
     <!-- Search box -->
     <div class="links-search-box">
@@ -490,42 +486,6 @@
     align-items: center;
     gap: var(--spacing-md);
     flex-wrap: wrap;
-  }
-
-  .filter-buttons {
-    display: flex;
-    background-color: var(--color-surface-soft);
-    padding: 2px;
-    border-radius: var(--rounded-md);
-    border: 1px solid var(--color-hairline);
-    flex-wrap: wrap;
-  }
-
-  .filter-btn {
-    background: none;
-    border: none;
-    padding: 6px 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-muted);
-    cursor: pointer;
-    border-radius: var(--rounded-sm);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .filter-btn.active {
-    background-color: var(--color-surface-card);
-    color: var(--color-primary);
-  }
-
-  .filter-btn .sup {
-    font-size: 10px;
-    font-weight: 700;
-    background-color: rgba(255, 255, 255, 0.05);
-    padding: 1px 5px;
-    border-radius: var(--rounded-xs);
   }
 
   .links-search-box {
