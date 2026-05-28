@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { appState } from '$lib/sharedState.svelte';
+  import { LICENSE } from '$lib/siteMeta';
 
   let { children } = $props();
 
@@ -50,7 +51,7 @@
         {/if}
         <span class="status-indicator">
           <span class="indicator-dot"></span>
-          Proxy Online
+          Client-Side
         </span>
       </div>
     </div>
@@ -97,8 +98,7 @@
         <div class="footer-col">
           <h4>Developer</h4>
           <ul>
-            <li><a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a></li>
-            <li><a href="https://github.com" target="_blank" rel="noreferrer">Documentation</a></li>
+            <li><a href="/how-to-use/">Documentation</a></li>
           </ul>
         </div>
         <div class="footer-col">
@@ -111,7 +111,7 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2026 selectseo.in. Built with SvelteKit. Apache-2.0 Licensed.</span>
+      <span>© 2026 selectseo.in. Built with SvelteKit. {LICENSE} Licensed.</span>
     </div>
   </footer>
 </div>
@@ -253,9 +253,8 @@
   .indicator-dot {
     width: 6px;
     height: 6px;
-    background-color: var(--color-accent-emerald);
+    background-color: var(--color-muted);
     border-radius: 50%;
-    box-shadow: 0 0 8px var(--color-accent-emerald);
   }
 
   .main-content {
