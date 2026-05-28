@@ -151,6 +151,10 @@ export function exportSEOReport(results: AuditResults): void {
   const onPageItems = [
     { name: 'Title Tag', status: results.onPage.title.status, detail: results.onPage.title.text, msg: results.onPage.title.message },
     { name: 'Meta Description', status: results.onPage.description.status, detail: results.onPage.description.text, msg: results.onPage.description.message },
+    { name: 'Viewport Meta', status: results.onPage.viewportAudit.status, detail: results.onPage.viewport || 'Missing', msg: results.onPage.viewportAudit.message },
+    { name: 'HTML Language', status: results.onPage.languageAudit.status, detail: results.onPage.contentMetrics.language, msg: results.onPage.languageAudit.message },
+    { name: 'Robots Directive', status: results.onPage.robotsMetaAudit.status, detail: results.onPage.robots, msg: results.onPage.robotsMetaAudit.message },
+    { name: 'Favicon Presence', status: results.onPage.faviconAudit.status, detail: results.onPage.favicon || 'Missing', msg: results.onPage.faviconAudit.message },
     { name: 'Canonical Link', status: results.onPage.canonical.status, detail: results.onPage.canonical.url, msg: results.onPage.canonical.message },
     { name: 'Header H1 Tag', status: results.onPage.headings.status, detail: `Found ${results.onPage.headings.h1.length} H1 headers.`, msg: results.onPage.headings.message },
     { name: 'Image Alt Tags', status: results.onPage.imageAlts.status, detail: `Missing ${results.onPage.imageAlts.missing} out of ${results.onPage.imageAlts.total} alts.`, msg: results.onPage.imageAlts.message }
@@ -198,6 +202,70 @@ export function exportSEOReport(results: AuditResults): void {
     y += 8;
   });
 
+  // AI Insights Section
+  addPageIfNeeded(80);
+  y += 4;
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(10, 10, 10);
+  doc.text('3. AI Insights & AEO Readiness', margin, y);
+  y += 6;
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 8;
+
+  const ai = results.aiDiscoverability;
+  // Draw AI Score
+  doc.setFillColor(240, 248, 255); // Pale cyan/blue tint
+  doc.rect(margin, y, contentWidth, 16, 'F');
+
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(80, 80, 80);
+  doc.text('AI READINESS SCORE:', margin + 6, y + 10);
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(16, 185, 129); // green
+  doc.text(`${ai.score}/100 (${ai.grade})`, margin + 55, y + 11);
+  y += 22;
+
+  // List AEO audits
+  const aiAudits = [
+    { name: 'Fact-First Q&A Formatting', audit: ai.qaFormatting },
+    { name: 'Content Scannability (Lists & Tables)', audit: ai.scannability },
+    { name: 'Semantic HTML Structure', audit: ai.semanticHtml },
+    { name: 'High-Value Schema Depth', audit: ai.targetSchema },
+    { name: 'AI Crawler Permissions (robots.txt)', audit: ai.robotsTxtAi }
+  ];
+
+  aiAudits.forEach(item => {
+    addPageIfNeeded(16);
+    let statusText = '[PASS]';
+    let drawColor = [34, 197, 94];
+    if (item.audit.status === 'warning') {
+      statusText = '[WARN]';
+      drawColor = [245, 158, 11];
+    } else if (item.audit.status === 'error') {
+      statusText = '[FAIL]';
+      drawColor = [239, 68, 68];
+    }
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(drawColor[0], drawColor[1], drawColor[2]);
+    doc.text(statusText, margin, y);
+
+    doc.setTextColor(20, 20, 20);
+    doc.text(item.name, margin + 20, y);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(90, 90, 90);
+    const msgLines = doc.splitTextToSize(item.audit.message, contentWidth - 40);
+    doc.text(msgLines, margin + 20, y + 4);
+    y += (msgLines.length * 4.2) + 6;
+  });
+  y += 4;
+
   // PageSpeed Performance Section (If populated)
   if (results.pageSpeedMobile || results.pageSpeedDesktop) {
     addPageIfNeeded(80);
@@ -205,7 +273,7 @@ export function exportSEOReport(results: AuditResults): void {
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(14);
     doc.setTextColor(10, 10, 10);
-    doc.text('3. PageSpeed Insights Performance', margin, y);
+    doc.text('4. PageSpeed Insights Performance', margin, y);
     y += 6;
     doc.line(margin, y, pageWidth - margin, y);
     y += 8;

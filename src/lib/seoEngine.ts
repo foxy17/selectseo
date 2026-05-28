@@ -61,6 +61,21 @@ export interface TwitterCardAudit {
   message: string;
 }
 
+export interface GenericAudit {
+  status: 'ok' | 'warning' | 'error' | 'missing';
+  message: string;
+}
+
+export interface AIDiscoverabilityAudit {
+  score: number;
+  grade: string;
+  qaFormatting: GenericAudit;
+  scannability: GenericAudit;
+  semanticHtml: GenericAudit;
+  targetSchema: GenericAudit;
+  robotsTxtAi: GenericAudit;
+}
+
 export interface ContentMetrics {
   wordCount: number;
   contentRatio: number;
@@ -90,6 +105,10 @@ export interface OnPageSEOResults {
   schemaTypes: string[];
   schemas: Array<{ type: string; code: string }>;
   htmlSize: number;
+  viewportAudit: GenericAudit;
+  languageAudit: GenericAudit;
+  robotsMetaAudit: GenericAudit;
+  faviconAudit: GenericAudit;
 }
 
 export interface LinkItem {
@@ -125,6 +144,7 @@ export interface AuditResults {
   links: LinkItem[];
   pageSpeedMobile: PageSpeedMetric | null;
   pageSpeedDesktop: PageSpeedMetric | null;
+  aiDiscoverability: AIDiscoverabilityAudit;
   score: number; // Overall SEO Score 0-100
   grade: string; // Overall Grade e.g. A+, B, F
 }
@@ -234,6 +254,34 @@ export async function runSEOAudit(
   onProgress(`Crawl complete (${(htmlSize / 1024).toFixed(1)} KB). Parsing DOM...`);
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlText, 'text/html');
+
+  // AI: robots.txt check
+  onProgress('Checking robots.txt for AI bots...');
+  let robotsTxtAi: GenericAudit = { status: 'ok', message: 'No AI bots explicitly blocked in robots.txt.' };
+  try {
+    const parsedUrl = new URL(targetUrl);
+    const robotsUrl = `${parsedUrl.protocol}//${parsedUrl.host}/robots.txt`;
+    const robotsRes = await fetch(buildProxyFetchUrl(proxyUrl, robotsUrl));
+    if (robotsRes.ok) {
+      const robotsContent = await robotsRes.text();
+      const lowerRobots = robotsContent.toLowerCase();
+      if (lowerRobots.includes('user-agent: gptbot') || 
+          lowerRobots.includes('user-agent: chatgpt-user') || 
+          lowerRobots.includes('user-agent: oai-searchbot') || 
+          lowerRobots.includes('user-agent: google-extended') || 
+          lowerRobots.includes('user-agent: perplexitybot') ||
+          lowerRobots.includes('user-agent: anthropic-ai')) {
+        
+        if (lowerRobots.includes('disallow: /')) {
+           robotsTxtAi = { status: 'warning', message: 'robots.txt appears to block one or more AI crawlers (e.g. GPTBot, Google-Extended, PerplexityBot). This prevents inclusion in some AI chat results.' };
+        }
+      }
+    } else {
+      robotsTxtAi = { status: 'ok', message: 'robots.txt not found or unreachable, assuming AI bots are allowed.' };
+    }
+  } catch {
+    robotsTxtAi = { status: 'warning', message: 'Failed to fetch robots.txt to verify AI crawler permissions.' };
+  }
 
   // 1. Audit Title
   onProgress('Analyzing meta tags...');
@@ -459,6 +507,87 @@ export async function runSEOAudit(
     }
   });
 
+  // New Client-Side Audits
+  let viewportStatus: GenericAudit['status'] = 'ok';
+  let viewportMessage = 'Viewport meta tag is configured correctly for mobile devices.';
+  if (!viewport) {
+    viewportStatus = 'error';
+    viewportMessage = 'Missing viewport meta tag. Page will not be mobile-friendly.';
+  } else if (!viewport.includes('width=device-width')) {
+    viewportStatus = 'warning';
+    viewportMessage = 'Viewport tag is missing "width=device-width".';
+  }
+  const viewportAudit: GenericAudit = { status: viewportStatus, message: viewportMessage };
+
+  let languageStatus: GenericAudit['status'] = 'ok';
+  let languageMessage = `HTML language attribute is set to "${language}".`;
+  if (language === 'unknown' || !language) {
+    languageStatus = 'error';
+    languageMessage = 'Missing HTML lang attribute. Crucial for screen readers and regional SEO.';
+  }
+  const languageAudit: GenericAudit = { status: languageStatus, message: languageMessage };
+
+  let robotsMetaStatus: GenericAudit['status'] = 'ok';
+  let robotsMetaMessage = 'Robots meta tag allows indexing.';
+  const robotsLower = robotsText.toLowerCase();
+  if (robotsLower.includes('noindex') || robotsLower.includes('none')) {
+    robotsMetaStatus = 'error';
+    robotsMetaMessage = 'Robots meta tag contains "noindex". This page will NOT appear in search engines.';
+  } else if (robotsLower.includes('nofollow')) {
+    robotsMetaStatus = 'warning';
+    robotsMetaMessage = 'Robots meta tag contains "nofollow". Search engines will not follow links on this page.';
+  }
+  const robotsMetaAudit: GenericAudit = { status: robotsMetaStatus, message: robotsMetaMessage };
+
+  let faviconStatus: GenericAudit['status'] = 'ok';
+  let faviconMessage = 'Favicon is present.';
+  if (!favicon) {
+    faviconStatus = 'warning';
+    faviconMessage = 'Missing favicon. Search results look less professional without a branded icon.';
+  }
+  const faviconAudit: GenericAudit = { status: faviconStatus, message: faviconMessage };
+
+  // AI Discoverability (AEO) Metrics
+  const qsRegex = /^(how|what|why|where|when|who|is|are|can|do|does)\b/i;
+  const allH2H3 = [...h2Elements, ...h3Elements];
+  const hasQA = allH2H3.some(h => qsRegex.test(h) || h.endsWith('?'));
+  const qaFormatting: GenericAudit = hasQA 
+    ? { status: 'ok', message: 'Page uses Question/Answer style headings which AI models favor for extracting facts.' }
+    : { status: 'warning', message: 'No question-based headings found. AI engines prefer explicit Q&A structures (e.g. "How does X work?").' };
+
+  const lists = doc.querySelectorAll('ul, ol, dl').length;
+  const tables = doc.querySelectorAll('table').length;
+  const scannability: GenericAudit = (lists > 0 || tables > 0)
+    ? { status: 'ok', message: `Found ${lists} lists and ${tables} tables. These structured elements are highly preferred by AI models for summarization.` }
+    : { status: 'warning', message: 'No lists or tables found. AI models struggle to extract facts from unstructured text.' };
+
+  const semantics = doc.querySelectorAll('article, section, main, nav, aside').length;
+  const semanticHtml: GenericAudit = semantics > 0
+    ? { status: 'ok', message: `Found ${semantics} semantic HTML5 elements. This helps AI build an accurate knowledge graph of your page.` }
+    : { status: 'warning', message: 'Lacking semantic HTML5 tags (<article>, <section>, <main>). Heavy reliance on <div> makes AI parsing difficult.' };
+
+  const hasTargetSchema = schemaTypes.some(t => ['faqpage', 'article', 'newsarticle', 'organization', 'product', 'how-to', 'howto'].includes(t.toLowerCase()));
+  const targetSchema: GenericAudit = hasTargetSchema
+    ? { status: 'ok', message: 'Detected high-value AEO schemas (e.g. Article, FAQ, Product, Organization) that AI engines actively consume.' }
+    : { status: 'warning', message: 'Missing high-value AEO schemas (FAQPage, Article, Organization, etc.).' };
+
+  let aiScore = 100;
+  if (qaFormatting.status === 'warning') aiScore -= 20;
+  if (scannability.status === 'warning') aiScore -= 20;
+  if (semanticHtml.status === 'warning') aiScore -= 15;
+  if (targetSchema.status === 'warning') aiScore -= 25;
+  if (robotsTxtAi.status === 'warning') aiScore -= 20;
+
+  const aiDiscoverability: AIDiscoverabilityAudit = {
+    score: Math.max(0, aiScore),
+    grade: calculateGrade(Math.max(0, aiScore)),
+    qaFormatting,
+    scannability,
+    semanticHtml,
+    targetSchema,
+    robotsTxtAi
+  };
+
   const onPageResults: OnPageSEOResults = {
     title: titleAudit,
     description: descriptionAudit,
@@ -475,7 +604,11 @@ export async function runSEOAudit(
     robots: robotsText,
     schemaTypes,
     schemas,
-    htmlSize
+    htmlSize,
+    viewportAudit,
+    languageAudit,
+    robotsMetaAudit,
+    faviconAudit
   };
 
   // 9. Links collection (CORS validation runs separately or asynchronously)
@@ -545,6 +678,12 @@ export async function runSEOAudit(
 
   if (schemaTypes.length === 0) score -= 3;
 
+  if (viewportAudit.status === 'error') score -= 10;
+  if (languageAudit.status === 'error') score -= 5;
+  if (robotsMetaAudit.status === 'error') score -= 50;
+  if (robotsMetaAudit.status === 'warning') score -= 10;
+  if (faviconAudit.status === 'warning') score -= 2;
+
   score = Math.max(0, Math.min(100, score));
 
   return {
@@ -554,6 +693,7 @@ export async function runSEOAudit(
     links: linkItems,
     pageSpeedMobile: null,
     pageSpeedDesktop: null,
+    aiDiscoverability,
     score,
     grade: calculateGrade(score)
   };

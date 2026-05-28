@@ -293,10 +293,10 @@
       <ul class="meta-checklist mt-2 font-mono">
         <li class="checklist-row">
           <span>Viewport (Mobile friendliness):</span>
-          {#if auditResults.onPage.viewport}
-            <span class="text-success" title={auditResults.onPage.viewport}>PRESENT</span>
+          {#if auditResults.onPage.viewportAudit.status === 'ok'}
+            <span class="text-success" title={auditResults.onPage.viewport}>{auditResults.onPage.viewportAudit.status.toUpperCase()}</span>
           {:else}
-            <span class="text-error">MISSING (Crucial!)</span>
+            <span class="text-error" title={auditResults.onPage.viewportAudit.message}>{auditResults.onPage.viewportAudit.status.toUpperCase()}</span>
           {/if}
         </li>
         <li class="checklist-row">
@@ -308,11 +308,27 @@
           {/if}
         </li>
         <li class="checklist-row">
+          <span>HTML Language:</span>
+          {#if auditResults.onPage.languageAudit.status === 'ok'}
+            <span class="text-success">{auditResults.onPage.contentMetrics.language.toUpperCase()}</span>
+          {:else}
+            <span class="text-error" title={auditResults.onPage.languageAudit.message}>MISSING</span>
+          {/if}
+        </li>
+        <li class="checklist-row">
+          <span>Robots Indexing:</span>
+          {#if auditResults.onPage.robotsMetaAudit.status === 'ok'}
+            <span class="text-success">ALLOWED</span>
+          {:else}
+            <span class="text-warning" title={auditResults.onPage.robotsMetaAudit.message}>{auditResults.onPage.robotsMetaAudit.status.toUpperCase()}</span>
+          {/if}
+        </li>
+        <li class="checklist-row">
           <span>Favicon links:</span>
-          {#if auditResults.onPage.favicon}
+          {#if auditResults.onPage.faviconAudit.status === 'ok'}
             <span class="text-success">DETECTED</span>
           {:else}
-            <span class="text-warning">MISSING</span>
+            <span class="text-warning" title={auditResults.onPage.faviconAudit.message}>MISSING</span>
           {/if}
         </li>
         <li class="checklist-row">
