@@ -1,5 +1,6 @@
 <script lang="ts">
   import SEO from '$lib/components/SEO.svelte';
+  import InfoPageLayout from '$lib/components/InfoPageLayout.svelte';
 
   const whatSchema = {
     "@context": "https://schema.org",
@@ -27,58 +28,55 @@
   };
 </script>
 
-<SEO 
-  title="What This Does - SelectSEO Auditor" 
-  description="Discover the local-first, developer-focused features of SelectSEO Auditor." 
-  path="/what-this-does/" 
-  schema={whatSchema} 
+<SEO
+  title="What This Does - SelectSEO Auditor"
+  description="Discover the local-first, developer-focused features of SelectSEO Auditor."
+  path="/what-this-does/"
+  schema={whatSchema}
 />
 
-<div class="info-page container">
-  <!-- What This Does Section -->
-  <section id="what-this-does" class="info-section">
-    <h1 class="section-title"><span class="highlight-text">What</span> This Does</h1>
-    <p class="section-subtitle">SelectSEO Auditor is a local-first, developer-focused SEO analysis suite built for performance, privacy, and precision.</p>
-    
-    <div class="info-grid">
-      <div class="info-card card-dark">
-        <div class="card-icon">⚡</div>
-        <h3>Client-Side Crawling</h3>
-        <p>Scrapes and parses page HTML tags, titles, headings, and images directly in your browser using a CORS proxy. Your crawled raw HTML never touches our servers.</p>
-      </div>
-      <div class="info-card card-dark">
-        <div class="card-icon">📁</div>
-        <h3>SQL-Based Auditing</h3>
-        <p>Compiles all crawled link maps, image lists, and HTML structural hierarchies into an in-memory SQL database, enabling powerful SQLite queries.</p>
-      </div>
-      <div class="info-card card-dark">
-        <div class="card-icon">✨</div>
-        <h3>On-Device AI Copilot</h3>
-        <p>Uses Google Chrome's native Prompt API to run Gemini Nano locally in your browser. Optimize page titles, plan keywords, and audit readability with zero API keys and absolute data privacy.</p>
-      </div>
-      <div class="info-card card-dark">
-        <div class="card-icon">📊</div>
-        <h3>PageSpeed Core Vitals</h3>
-        <p>Connects directly to Google's PageSpeed Insights API to pull real-time lighthouse scores for performance, accessibility, SEO, and best practices.</p>
-      </div>
-      <div class="info-card card-dark">
-        <div class="card-icon">🔒</div>
-        <h3>Privacy-First Design</h3>
-        <p>Serverless architecture ensures zero tracking or data retention. All scanned results, database tables, and API keys remain inside your local browser storage.</p>
-      </div>
-      <div class="info-card card-dark">
-        <div class="card-icon">🌐</div>
-        <h3>Open Source &amp; Extensible</h3>
-        <p>Built entirely with open source web standards (Svelte, SQLite WASM, and adapters). Completely free to self-host, customize, or modify under the MIT license.</p>
-      </div>
+<InfoPageLayout
+  title="What This Does"
+  subtitle="SelectSEO Auditor is a local-first, developer-focused SEO analysis suite built for performance, privacy, and precision."
+>
+  <div class="info-grid">
+    <div class="info-card card-dark">
+      <div class="card-icon">⚡</div>
+      <h3>Client-Side Crawling</h3>
+      <p>Scrapes and parses page HTML tags, titles, headings, and images directly in your browser using a CORS proxy. Your crawled raw HTML never touches our servers.</p>
     </div>
-  </section>
+    <div class="info-card card-dark">
+      <div class="card-icon">📁</div>
+      <h3>SQL-Based Auditing</h3>
+      <p>Compiles all crawled link maps, image lists, and HTML structural hierarchies into an in-memory SQL database, enabling powerful SQLite queries.</p>
+    </div>
+    <div class="info-card card-dark">
+      <div class="card-icon">✨</div>
+      <h3>On-Device AI Copilot</h3>
+      <p>Uses Google Chrome's native Prompt API to run Gemini Nano locally in your browser. Optimize page titles, plan keywords, and audit readability with zero API keys and absolute data privacy.</p>
+    </div>
+    <div class="info-card card-dark">
+      <div class="card-icon">📊</div>
+      <h3>PageSpeed Core Vitals</h3>
+      <p>Connects directly to Google's PageSpeed Insights API to pull real-time lighthouse scores for performance, accessibility, SEO, and best practices.</p>
+    </div>
+    <div class="info-card card-dark">
+      <div class="card-icon">🔒</div>
+      <h3>Privacy-First Design</h3>
+      <p>Serverless architecture ensures zero tracking or data retention. All scanned results, database tables, and API keys remain inside your local browser storage.</p>
+    </div>
+    <div class="info-card card-dark">
+      <div class="card-icon">🌐</div>
+      <h3>Open Source &amp; Extensible</h3>
+      <p>Built entirely with open source web standards (Svelte, SQLite WASM, and adapters). Completely free to self-host, customize, or modify under the MIT license.</p>
+    </div>
+  </div>
 
   <!-- Comparison Section -->
   <section class="comparison-section mt-5">
     <h2 class="section-title"><span class="highlight-text">SelectSEO</span> vs Legacy Platforms</h2>
     <p class="section-subtitle">How SelectSEO Auditor compares to legacy cloud-hosted SEO intelligence suites like Ahrefs, SEMrush, or Moz.</p>
-    
+
     <div class="table-container card-dark">
       <table class="comparison-table">
         <thead>
@@ -123,36 +121,9 @@
       </table>
     </div>
   </section>
-</div>
+</InfoPageLayout>
 
 <style>
-  .info-page {
-    padding: 64px var(--spacing-lg);
-  }
-
-  .info-section {
-    padding: var(--spacing-xl) 0;
-  }
-
-  .section-title {
-    font-size: 32px;
-    font-weight: 700;
-    margin-bottom: var(--spacing-xs);
-    letter-spacing: -0.5px;
-  }
-
-  .section-subtitle {
-    color: var(--color-muted);
-    font-size: 16px;
-    margin-bottom: var(--spacing-xl);
-    max-width: 720px;
-    line-height: 1.6;
-  }
-
-  .highlight-text {
-    color: var(--color-primary);
-  }
-
   /* Grid layout for What This Does */
   .info-grid {
     display: grid;
@@ -195,7 +166,7 @@
     border-left: 1px dashed rgba(250, 255, 105, 0.1) !important;
     border-right: 1px dashed rgba(250, 255, 105, 0.1) !important;
   }
-  
+
   th.col-highlight {
     color: var(--color-primary) !important;
     border-top: 1px dashed rgba(250, 255, 105, 0.1) !important;
@@ -252,11 +223,5 @@
   .font-bold {
     font-weight: 600;
     color: var(--color-body-strong);
-  }
-
-  @media (max-width: 768px) {
-    .info-grid {
-      grid-template-columns: 1fr;
-    }
   }
 </style>
