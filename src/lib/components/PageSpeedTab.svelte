@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AuditResults } from '$lib/seoEngine';
+  import { lighthouseBand, lighthouseHex } from '$lib/scoreUtils';
 
   let { 
     auditResults, 
@@ -33,19 +34,6 @@
 
   function toggleRec(recTitle: string) {
     expandedRecs[recTitle] = !expandedRecs[recTitle];
-  }
-
-  // Helper to color overall performance scores
-  function getScoreColorClass(score: number): string {
-    if (score >= 90) return 'text-success';
-    if (score >= 50) return 'text-warning';
-    return 'text-error';
-  }
-
-  function getScoreColorHex(score: number): string {
-    if (score >= 90) return 'var(--color-success)';
-    if (score >= 50) return 'var(--color-warning)';
-    return 'var(--color-error)';
   }
 
   // Parse string values (like "1.8 s" or "250 ms") into numbers for range bars
@@ -147,12 +135,12 @@
             <div class="gauge-wrapper">
               <svg class="progress-gauge" width="100" height="100" viewBox="0 0 100 100">
                 <circle class="gauge-bg" cx="50" cy="50" r="42" stroke="#222" stroke-width="8" fill="none" />
-                <circle class="gauge-fill" cx="50" cy="50" r="42" stroke={getScoreColorHex(score)} stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset={263.89 - (263.89 * score) / 100} fill="none" stroke-linecap="round" />
+                <circle class="gauge-fill" cx="50" cy="50" r="42" stroke={lighthouseHex(score)} stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset={263.89 - (263.89 * score) / 100} fill="none" stroke-linecap="round" />
               </svg>
-              <span class="gauge-text" style="color: {getScoreColorHex(score)}">{score}</span>
+              <span class="gauge-text" style="color: {lighthouseHex(score)}">{score}</span>
             </div>
             <div class="score-meta">
-              <span class="score-grade font-mono" class:text-success={score >= 90} class:text-warning={score >= 50 && score < 90} class:text-error={score < 50}>
+              <span class="score-grade font-mono" class:text-success={lighthouseBand(score) === 'success'} class:text-warning={lighthouseBand(score) === 'warning'} class:text-error={lighthouseBand(score) === 'error'}>
                 {#if score >= 90}GOOD{:else if score >= 50}NEEDS IMPROVEMENT{:else}POOR{/if}
               </span>
               <p class="text-muted font-sans mt-1">Lighthouse Desktop simulation audit score.</p>
@@ -231,12 +219,12 @@
             <div class="gauge-wrapper">
               <svg class="progress-gauge" width="100" height="100" viewBox="0 0 100 100">
                 <circle class="gauge-bg" cx="50" cy="50" r="42" stroke="#222" stroke-width="8" fill="none" />
-                <circle class="gauge-fill" cx="50" cy="50" r="42" stroke={getScoreColorHex(score)} stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset={263.89 - (263.89 * score) / 100} fill="none" stroke-linecap="round" />
+                <circle class="gauge-fill" cx="50" cy="50" r="42" stroke={lighthouseHex(score)} stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset={263.89 - (263.89 * score) / 100} fill="none" stroke-linecap="round" />
               </svg>
-              <span class="gauge-text" style="color: {getScoreColorHex(score)}">{score}</span>
+              <span class="gauge-text" style="color: {lighthouseHex(score)}">{score}</span>
             </div>
             <div class="score-meta">
-              <span class="score-grade font-mono" class:text-success={score >= 90} class:text-warning={score >= 50 && score < 90} class:text-error={score < 50}>
+              <span class="score-grade font-mono" class:text-success={lighthouseBand(score) === 'success'} class:text-warning={lighthouseBand(score) === 'warning'} class:text-error={lighthouseBand(score) === 'error'}>
                 {#if score >= 90}GOOD{:else if score >= 50}NEEDS IMPROVEMENT{:else}POOR{/if}
               </span>
               <p class="text-muted font-sans mt-1">Lighthouse Mobile simulation (moto g4 throttle).</p>
