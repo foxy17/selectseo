@@ -1,5 +1,5 @@
 class AppState {
-  hasResults = $state(false);
+	hasResults = $state(false);
 }
 
 export const appState = new AppState();

@@ -34,6 +34,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 ### Task 0.1: Install deps and capture the baseline
 
 **Steps:**
+
 1. Run `npm ci` (lockfile is committed). If `engine-strict` rejects the local Node, switch to Node 20 (see Task 7.3).
 2. Run `npm run check`. Record the exact pass/fail output in the PR description — this is the baseline; every later task must not regress it.
 3. Commit nothing (read-only baseline).
@@ -43,11 +44,13 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 ### Task 0.2: Add Vitest for pure-logic modules
 
 **Files:**
+
 - Modify: `package.json` (devDeps + `test` script)
 - Create: `vitest.config.ts`
 - Create: `src/lib/seoEngine.test.ts` (placeholder importing one exported fn)
 
 **Steps:**
+
 1. Add devDeps: `vitest`, `jsdom` (for `DOMParser` in tests). Add script `"test": "vitest run"` and `"test:watch": "vitest"`.
 2. Create `vitest.config.ts` with `environment: 'jsdom'` and SvelteKit `$lib` alias resolution (reuse the alias from `.svelte-kit/tsconfig.json` or add `resolve.alias` for `$lib` → `src/lib`).
 3. Write a trivial test: `import { calculateGrade } from './seoEngine'; expect(calculateGrade(95)).toBe('A')` (adjust to actual return).
@@ -60,6 +63,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Files:** Modify `package.json`; Create `eslint.config.js`, `.prettierrc`, `.prettierignore`.
 
 **Steps:**
+
 1. Add devDeps: `eslint`, `@eslint/js`, `typescript-eslint`, `eslint-plugin-svelte`, `svelte-eslint-parser`, `prettier`, `prettier-plugin-svelte`.
 2. Flat config (`eslint.config.js`) extending recommended + svelte recommended; parserOptions point at `tsconfig.json`.
 3. Add scripts: `"lint": "eslint ."`, `"format": "prettier --write ."`, `"format:check": "prettier --check ."`.
@@ -70,6 +74,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Files:** Modify `.github/workflows/deploy.yml` (around lines 36–41, before `npm run build`).
 
 **Steps:**
+
 1. Add steps after `npm ci`: `npm run check`, `npm run lint`, `npm test`. Fail the deploy on any error.
 2. Commit: `ci: run check/lint/test before build`.
 
@@ -122,6 +127,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** Navigating to a new target URL while `validateLinks` (concurrency 4) and the two `fetchPageSpeed` calls are in flight lets the old async callbacks keep mutating `auditResults` and calling `saveCrawlToHistory()` for the **previous** URL. No cancellation token exists.
 
 **Steps:**
+
 1. Add `let crawlId = 0;` (plain module-scope counter is fine — it's not reactive state).
 2. At the start of each crawl: `const myCrawlId = ++crawlId;`.
 3. In every async callback (`validateLinks` onProgress/onComplete, `triggerPageSpeedAudits`, the `.then`/`.catch` of `runFreshScan`): early-return `if (myCrawlId !== crawlId) return;` before any state mutation or `saveCrawlToHistory()`.
@@ -138,6 +144,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** `rawUrl` is `$derived` (good) but `currentUrl` (normalized) is separate `$state` mutated inside the crawl `$effect` — deriving state via an effect, the documented anti-pattern.
 
 **Steps:**
+
 1. Replace the `currentUrl` `$state` + in-effect assignment with `const currentUrl = $derived.by(() => normalizeUrl(rawUrl));` where `normalizeUrl` prepends `https://` when missing.
 2. The crawl `$effect` now reads only `currentUrl` and calls `untrack(() => checkCacheAndCrawl(currentUrl))` (import `untrack` from `svelte`) so unrelated reactive reads don't retrigger the scan.
 
@@ -154,6 +161,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Step 1 (test):** Vitest test for a `fetchWithTimeout(url, opts, ms)` helper: resolves on a fast mock, rejects with an abort error past the timeout.
 
 **Step 2 (impl):**
+
 - Add `fetchWithTimeout` using `AbortController` + `setTimeout` (clear it in `finally`). Replace every bare `fetch` with it (crawl 10s, robots 5s, each link 8s, PageSpeed 60s).
 - In `validateLinks`, when both HEAD and GET fail (or abort): set `status = null` (type already allows `number | null`), `statusState = 'broken'`, `statusText = 'Unreachable'`. Do **not** use 500.
 - Use `parseInt(x, 10)` (or `Number`) with an `isNaN` fallback to `response.status` at lines 735/749.
@@ -183,6 +191,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** `await res.json()` is `any`; `data.lighthouseResult`, `lighthouse.categories.performance`, `audit.details?.type` are dereferenced with no shape check — a changed/empty/error response throws a raw `TypeError`. Audit classification also keys on fragile `id.includes('minify'|'optimize'|…)` substrings.
 
 **Steps:**
+
 1. Define minimal interfaces for the subset read: `LighthouseResult`, `LighthouseCategory`, `LighthouseAudit` (id, title, score, scoreDisplayMode, details?.type).
 2. Guard: `const lighthouse = data?.lighthouseResult; if (!lighthouse?.categories?.performance) throw new Error('PageSpeed returned no Lighthouse performance data.');`
 3. Replace substring `id.includes(...)` classification with `details?.type === 'opportunity'` + `scoreDisplayMode`. Keep an explicit allowlist constant only if needed.
@@ -255,6 +264,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** ~165 lines of `initShader` are duplicated byte-for-byte across both pages, plus the console-log markup, the `log()` fn, the auto-scroll `$effect`, and ~120 lines of identical `.console-*` CSS + `@keyframes`.
 
 **Steps:**
+
 1. Move shader source + compile/link/render/cleanup into `consoleShader.ts` exporting `initShader(canvas: HTMLCanvasElement): (() => void) | null`.
 2. Create `<ConsoleHud {logs} />` (`logs: string[]` via `$props`) that owns the `<canvas>`, the log list, the auto-scroll `$effect` (use `tick()` instead of `setTimeout(0)` — Task 5.x), and all `.console-*` styles. It calls `initShader` in `onMount` and runs the returned cleanup in the teardown.
 3. Replace both pages' inline blocks with `<ConsoleHud logs={scanLogs} />`. Keep each page's own `scanLogs` `$state` and `log()` helper (or move `log` into the parent and pass logs down — parent keeps ownership).
@@ -270,6 +280,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** The proxy/key load+save+reverse-map block is duplicated across both pages, with 6+ hardcoded copies of `'https://corsproxy.io/?url='`, and the three localStorage keys appear as 12 bare string literals.
 
 **Steps:**
+
 1. `storageKeys.ts`: `export const STORAGE_KEYS = { history: 'seo_crawl_history', proxy: 'seo_proxy_url', pagespeedKey: 'seo_pagespeed_key' } as const;`
 2. `settings.svelte.ts`: rune-backed module exporting `proxyUrl`, `apiKey`, `selectedProxy` (`$state`), a `PROXY_PRESETS` constant (the option values, one source), `load()` and `save()`. Compute the effective proxy with `$derived` (custom branch binds a separate `customProxy`), removing the effect-driven sync.
 3. `<AuditSettings>`: the proxy/key form markup, bound to the store.
@@ -286,6 +297,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** Both pages parse/write `seo_crawl_history` independently with `$state<any[]>`, no shared type, and divergent logic (landing `deleteHistoryItem` skips the 6-item cap and try/catch; orchestrator has them).
 
 **Steps:**
+
 1. Define and export `interface CrawlHistoryItem { url; timestamp; score; grade; errorCount; warningCount; results: AuditResults; }` and `export const MAX_HISTORY = 6;`.
 2. Export `loadHistory()`, `saveHistory(items)`, `upsert(item)`, `deleteHistoryItem(url)` — all using `STORAGE_KEYS.history`, the cap, and try/catch.
 3. Both pages use `$state<CrawlHistoryItem[]>` and call these.
@@ -301,6 +313,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** Error/warning/passed counting is written twice in the orchestrator (`saveCrawlToHistory` vs the `$derived`) and can drift; `recalculateOverallScore` mutates `auditResults.score` inline while grade logic lives in the engine.
 
 **Steps:**
+
 1. Add pure `summarizeAudit(results): { errorCount; warningCount; passedCount }` to `seoEngine.ts` (Vitest-tested).
 2. Add `recalculateOverallScore(results): number` (pure — returns the score; caller assigns) or keep mutation but move it to the engine.
 3. Replace both orchestrator counting sites with `summarizeAudit`; the `$derived` and `saveCrawlToHistory` now share one source.
@@ -316,6 +329,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** `navigator.clipboard.writeText` called with no `await`/`.catch` then a blocking `alert('Copied…')`; CSV download dance and escaping reimplemented per place.
 
 **Steps:**
+
 1. `exportUtils.ts`: `async copyToClipboard(text): Promise<boolean>` (try/catch, returns success) and `downloadFile(name, mime, content)`. Optional `toCsv(rows, headers)` with proper escaping.
 2. Replace the LinksTab and SQL-console export logic with these. Replace `alert()` with a small non-blocking toast (reuse existing notification pattern if any; otherwise a minimal inline status message). Note: dropping `alert()` is an intentional UX change.
 
@@ -330,6 +344,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** Desktop (131–213) and Mobile (216–297) panels are ~70 lines of duplicated markup each, and the LCP/TBT/CLS range row is itself triplicated within each panel (~6 near-identical blocks total). This is the bulk of the 656-line file.
 
 **Steps:**
+
 1. `<VitalRangeBar title pct color labels />` renders one vital's track+fill+labels (reuses the `ProgressBar` from Task 3.9 if landed first).
 2. `<StrategyCard strategy={data} error={err} label="Desktop" />` renders the gauge + a `{#each [lcp,tbt,cls]}` of `<VitalRangeBar>`.
 3. Replace both panels with `<StrategyCard label="Desktop" .../>` and `<StrategyCard label="Mobile" .../>`.
@@ -356,6 +371,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Files:** Modify `OnPageTab.svelte:200–261 (H1–H6), 357–393 (schema)`; `AiChatTab.svelte:303–315,347–355 (nudges)`; create `src/lib/components/Collapsible.svelte` and refactor `OnPageTab` schema (357–391) + `PageSpeedTab` recs (351–372).
 
 **Steps:**
+
 1. Headings: iterate `[1,2,3,4,5,6]`, compute `depth-{n}`/`h{n}-badge` dynamically; keep the H1-empty special case. Six blocks → one.
 2. Schema panel: normalize `schemas ?? schemaTypes.map(...)` into one list, single `{#each}`.
 3. Nudges: give each nudge `{ icon, label, subtitle, prompt }` structured fields (stop `title.split(' ')[0]` emoji-munging); render the two treatments from the structured data.
@@ -372,6 +388,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** `display:flex;justify-content:space-between;align-items:center` re-declared in ~8 places under different names; `.mt-*`/`.ml-*` redefined in 3 components (and conflicting values across marketing pages); ~20+ hand-typed `rgba(250,255,105,…)`/`rgba(239,68,68,…)`/`rgba(34,197,94,…)` literals; many hardcoded hexes that equal existing tokens (`#3b82f6`=`--color-accent-blue`, etc.).
 
 **Steps:**
+
 1. Add to `index.css`: `.row-between` utility; `.mt-2/.mt-4/.ml-2/.pt-5` margin utilities (one canonical value each); `--color-*-rgb` channel tokens (e.g. `--color-primary-rgb: 250 255 105;`) so tints become `rgb(var(--color-primary-rgb) / 0.08)`.
 2. Sweep components: replace token-equivalent hexes with `var(--color-*)`; replace literal `rgba()` with the channel-token form; delete the per-component `.mt-*`/`.ml-*` redefinitions. **Exception:** SERP/social preview brand colors (Google `#1a0dab`/`#dadce0`, Facebook `#3b5998`, Twitter, white) legitimately mimic external UIs — keep them but move to clearly-named local constants with a comment.
 3. Delete dead CSS: `.status-err` (AIDiscoverabilityTab:133), `.font-semibold` (PageSpeedTab:556), unused `--color-accent-rose`/`--spacing-section`/`.display-sm`/`.card-yellow` in index.css (or keep deliberately and comment as design-system-only).
@@ -387,6 +404,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Problem:** All three info pages redeclare identical `.info-page/.info-section/.section-title/.section-subtitle/.highlight-text` CSS + the same responsive collapse; FAQ content is duplicated between the JSON-LD `faqSchema` and the rendered cards (and the two copies have already drifted, line 70 vs 110); `how-to-use` has literal `**markdown**` asterisks that render as plain text (line 142).
 
 **Steps:**
+
 1. `<InfoPageLayout title subtitle>` (slot content) carrying the shared shell + styles.
 2. Convert each page to use it. Move `how-to-use`'s `**...**` to `<strong>`.
 3. FAQ: single `const faqs = [{ q, a }]` array feeding **both** the `FAQPage` JSON-LD and the rendered cards.
@@ -416,6 +434,7 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 **Files:** Create `src/lib/crawlController.svelte.ts`; modify `src/routes/crawl-detail/[...url]/+page.svelte`.
 
 **Steps:**
+
 1. Move into the controller: `isScanning`, `auditResults`, `scanLogs`, link-validation progress, PageSpeed states, and the `crawlId` generation counter (from Task 2.1). Expose `start(url, { proxyUrl, apiKey })` and `recrawl()`. Every async callback checks `crawlId` and respects the `AbortController`.
 2. The page becomes a thin consumer: one minimal `$effect` reading only `currentUrl` (now `$derived`, Task 2.2) calling `controller.start(currentUrl, settings)`. It renders the grade/stats banner + tab components + `<ConsoleHud>` + `<AuditSettings>`.
 3. Remove the now-dead inline `recalculateOverallScore`, `saveCrawlToHistory` counting (use Task 3.6 helpers), `exportQueryToCSV` (Task 3.7), shader (Task 3.3), settings (Task 3.4), history (Task 3.5).
@@ -443,12 +462,14 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 > Independent small tasks. Can be parallelized. Each is its own commit.
 
 ### Task 5.1: Accessibility fixes
+
 - `LinksTab.svelte:270–287` sortable `<th onclick>` → `<button>` (or `role="columnheader" aria-sort`), add `tabindex`/`onkeydown`; row toggle (297) keyboard-focusable.
 - `+page.svelte:466` history card: make it an `<a href="/crawl-detail/{url}">` with the delete `<button>` as a **sibling**, not nested inside a `role="button"` (invalid ARIA today).
 - `OnPageTab.svelte:120,135` OG/Twitter `<img>`: add `loading="lazy"` + `onerror` fallback to the existing placeholder.
 - Commit: `a11y: keyboard-accessible link table, valid history card semantics, img fallbacks`.
 
 ### Task 5.2: Remove dead code
+
 - `DashboardTab.svelte` unused props `isValidatingLinks`/`checkedLinksCount`/`totalLinksCount` (6–8,12–14) + remove from parent call site.
 - `+page.svelte:3` unused `import { initSqlEngine }`.
 - `src/lib/index.ts` — populate as a real `$lib` barrel (`export * from './seoEngine'` etc.) or delete.
@@ -456,21 +477,25 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 - Commit: `chore: remove dead props/imports`.
 
 ### Task 5.3: Fix misleading/placeholder UI strings
+
 - `+layout.svelte:51–54` "Proxy Online" badge: it's hardcoded and misleads when the proxy is down. Either remove it or reflect the last crawl's proxy result. (Recommend: remove the "Online" assertion.)
 - `+layout.svelte:100–101` footer "GitHub"/"Documentation" both point to bare `https://github.com` — point at the real repo/docs or remove.
 - License contradiction: footer says **Apache-2.0** (`+layout.svelte:114`), `what-this-does` says **MIT** (72, 109). **DECIDED: MIT.** Change the footer to MIT; source from a single constant.
 - Commit: `fix: correct misleading proxy badge, placeholder links, license string`.
 
 ### Task 5.4: Idiomatic auto-scroll + non-reactive flag cleanup
+
 - Replace `setTimeout(0)` + bare `scanLogs;` dependency-touch with `tick().then(...)` in the `<ConsoleHud>` auto-scroll effect (now centralized in Task 3.3).
 - `+page.svelte:267,339` `let typingActive` — scope the cancellation flag inside `onMount`.
 - Commit: `refactor: idiomatic tick-based autoscroll, scoped typing flag`.
 
 ### Task 5.5: Add `{#each}` keys
+
 - Add stable keys to lists currently unkeyed: `DashboardTab:312 (issue.id)`, `OnPageTab` heading/schema loops, `PageSpeedTab:350,389`, `AiChatTab:303,321,347` (messages especially, since `expandedSchemas[idx]` index-keying can mis-associate state on reorder).
 - Commit: `fix: add stable each-block keys`.
 
 ### Task 5.6: Config / build hardening
+
 - `package.json`: remove redundant `@types/dompurify` + `@types/marked` (both libs ship their own types); run `npm run check` to confirm. Add `"engines": { "node": ">=20 <21" }` (makes the existing `engine-strict=true` meaningful).
 - Create `.nvmrc` with `20`.
 - `typescript: ^6.0.2` — confirm it resolves and `svelte-check` passes against it under `npm ci`; if it breaks, pin to the last known-good (`~5.x`). (TS 6 is an early/transitional major — verify, don't assume.)
@@ -478,17 +503,20 @@ Four read-only audit agents reviewed independent slices of the repo (core libs; 
 - Commit: `chore: trim redundant @types, pin node engine, add .nvmrc`.
 
 ### Task 5.7: GitHub Pages / static-asset hygiene
+
 - `static/sql-wasm-browser.wasm` and `static/sql-wasm.wasm` are identical size (659730 B) and only the latter is referenced. Confirm no runtime reference to `-browser`, then delete it (~640 KB off the deploy).
 - Add `static/CNAME` containing `selectseo.in` so the custom apex domain is reasserted on every Pages deploy (none exists today).
 - Commit: `chore: drop unused wasm, add CNAME for custom domain`.
 
 ### Task 5.8: DESIGN.md ↔ index.css token reconciliation
+
 - `--rounded-full: 50%` vs DESIGN's `9999px` — align one to the other (decide: `full` = circle for avatars, or `9999px` pill) and update whichever is wrong.
 - `.title-md`/`.title-sm` missing `letter-spacing: 0` per spec; `.badge-yellow` uses `11px`/`1px` vs spec `12px`/`1.5px`. Add a `--tracking-*` token set if letter-spacing recurs.
 - Collapse duplicate token pairs (`--color-accent-rose`==`--color-error`, `--color-accent-emerald`==`--color-success`) into aliases.
 - Commit: `style: reconcile design tokens with DESIGN.md`.
 
 ### Task 5.9: Minor seoEngine robustness (low)
+
 - `buildProxyFetchUrl` (166–181): replace the brittle regex+`includes('url=')` heuristic with one documented contract (require a `{url}` placeholder OR always append `?url=<encoded>`). The current `includes('url=')` branch can return the proxy root without the target. Vitest-test it.
 - `estimateReadingLevel` (219–224): make suffix syllable handling mutually exclusive (check `-es`/`-ed` before `-e`); add a "rough heuristic" comment.
 - `contentRatio` (450): guard `htmlSize > 0` explicitly; treat empty crawl body as an error upstream.

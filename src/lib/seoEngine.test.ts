@@ -32,7 +32,11 @@ function link(id: number, statusState: LinkItem['statusState']): LinkItem {
  * just the fields under test.
  */
 function makeAudit(overrides: Partial<AuditResults> = {}): AuditResults {
-	const ok = (extra: Record<string, unknown> = {}) => ({ status: 'ok' as const, message: '', ...extra });
+	const ok = (extra: Record<string, unknown> = {}) => ({
+		status: 'ok' as const,
+		message: '',
+		...extra
+	});
 	return {
 		url: 'https://example.com',
 		timestamp: '2026-01-01T00:00:00.000Z',
@@ -200,7 +204,12 @@ describe('summarizeAudit', () => {
 				title: { text: '', length: 0, status: 'missing', message: '' }, // error
 				description: { text: '', length: 0, status: 'warning', message: '' }, // warning
 				headings: {
-					h1: [], h2: [], h3: [], h4: [], h5: [], h6: [],
+					h1: [],
+					h2: [],
+					h3: [],
+					h4: [],
+					h5: [],
+					h6: [],
 					status: 'error', // error
 					message: ''
 				},
@@ -316,16 +325,13 @@ describe('collectJsonLdSchemas', () => {
 		const parsed = [
 			{ '@type': 'WebSite', name: 'Site' },
 			{
-				'@graph': [
-					{ '@type': 'Organization', name: 'Org' },
-					{ '@type': 'BreadcrumbList' }
-				]
+				'@graph': [{ '@type': 'Organization', name: 'Org' }, { '@type': 'BreadcrumbList' }]
 			},
 			{ '@type': ['Article', 'NewsArticle'], headline: 'Hi' }
 		];
 
 		const collected = collectJsonLdSchemas(parsed);
-		expect(collected.map(s => s.type)).toEqual([
+		expect(collected.map((s) => s.type)).toEqual([
 			'WebSite',
 			'Organization',
 			'BreadcrumbList',
@@ -335,10 +341,10 @@ describe('collectJsonLdSchemas', () => {
 	});
 
 	it('handles a single object node and a top-level @graph wrapper', () => {
-		expect(collectJsonLdSchemas({ '@type': 'FAQPage' }).map(s => s.type)).toEqual(['FAQPage']);
-		expect(
-			collectJsonLdSchemas({ '@graph': [{ '@type': 'Product' }] }).map(s => s.type)
-		).toEqual(['Product']);
+		expect(collectJsonLdSchemas({ '@type': 'FAQPage' }).map((s) => s.type)).toEqual(['FAQPage']);
+		expect(collectJsonLdSchemas({ '@graph': [{ '@type': 'Product' }] }).map((s) => s.type)).toEqual(
+			['Product']
+		);
 	});
 
 	it('skips nodes without an @type and ignores non-string @type entries', () => {
@@ -346,7 +352,7 @@ describe('collectJsonLdSchemas', () => {
 			{ name: 'no type here' },
 			{ '@type': ['Valid', 42, null, 'AlsoValid'] }
 		]);
-		expect(collected.map(s => s.type)).toEqual(['Valid', 'AlsoValid']);
+		expect(collected.map((s) => s.type)).toEqual(['Valid', 'AlsoValid']);
 	});
 
 	it('records the pretty-printed source node as code for array @type entries', () => {

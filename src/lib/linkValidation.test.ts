@@ -110,12 +110,7 @@ describe('validateLinks', () => {
 		const onComplete = vi.fn();
 		const updated: number[] = [];
 
-		await validateLinks(
-			links,
-			'',
-			(link) => updated.push(link.id),
-			onComplete
-		);
+		await validateLinks(links, '', (link) => updated.push(link.id), onComplete);
 
 		// onComplete fires exactly once, after all workers finish.
 		expect(onComplete).toHaveBeenCalledTimes(1);

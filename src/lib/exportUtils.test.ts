@@ -7,7 +7,12 @@ describe('toCsv', () => {
 	});
 
 	it('joins multiple rows with newlines', () => {
-		expect(toCsv([['h1', 'h2'], ['v1', 'v2']])).toBe('h1,h2\nv1,v2');
+		expect(
+			toCsv([
+				['h1', 'h2'],
+				['v1', 'v2']
+			])
+		).toBe('h1,h2\nv1,v2');
 	});
 
 	it('quotes fields that contain a comma', () => {

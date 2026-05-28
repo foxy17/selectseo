@@ -33,12 +33,14 @@ High-performance, developer-first SEO scanner, auditor, and analysis panel runni
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone git@github.com:foxy17/selectseo.git
    cd selectseo
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
@@ -51,9 +53,11 @@ High-performance, developer-first SEO scanner, auditor, and analysis panel runni
 ### Building for Production
 
 To create a static production bundle:
+
 ```bash
 npm run build
 ```
+
 The output will be placed in the `build/` directory, ready to be hosted on any static hosting provider (e.g., GitHub Pages, Cloudflare Pages, Netlify).
 
 ---
@@ -63,6 +67,7 @@ The output will be placed in the `build/` directory, ready to be hosted on any s
 The CORS proxy scraper code is located in the `cloudflare-worker/` directory.
 
 To deploy the scraper proxy to your own Cloudflare account:
+
 1. Make sure you have the [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed and authenticated.
 2. Initialize wrangler inside `cloudflare-worker/`:
    ```bash
@@ -77,6 +82,7 @@ To deploy the scraper proxy to your own Cloudflare account:
 This repository includes a GitHub Actions workflow to automatically build and deploy your main branch to GitHub Pages.
 
 To enable deployment:
+
 1. Go to your repository settings on GitHub: **Settings > Pages**.
 2. Under **Build and deployment > Source**, select **GitHub Actions**.
 3. Push your code to the `main` branch, and the deployment workflow will trigger automatically.
