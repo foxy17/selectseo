@@ -79,7 +79,10 @@ export default ts.config(
 			'svelte/no-navigation-without-resolve': 'off',
 			// {@html} is used intentionally for JSON-LD injection and sanitized (DOMPurify)
 			// markdown rendering; downgrade the blanket XSS warning to a non-blocking hint.
-			'svelte/no-at-html-tags': 'warn'
+			'svelte/no-at-html-tags': 'warn',
+			// `new Date()` is used only for one-shot timestamps (log lines, history
+			// timestamps), not reactive mutable state, so SvelteDate is unnecessary here.
+			'svelte/prefer-svelte-reactivity': 'warn'
 		}
 	}
 );
