@@ -759,6 +759,79 @@ export async function runSEOAudit(
 }
 
 /**
+ * Pure summary of an audit's error / warning / passed counts. This is the
+ * single source of truth shared by the dashboard's live metric widgets and the
+ * counts persisted to crawl history, so the saved numbers always equal what is
+ * shown on screen.
+ */
+export function summarizeAudit(results: AuditResults): {
+  errorCount: number;
+  warningCount: number;
+  passedCount: number;
+} {
+  const { onPage, links } = results;
+
+  const errorCount =
+    (onPage.title.status === 'missing' ? 1 : 0) +
+    (onPage.description.status === 'missing' ? 1 : 0) +
+    (onPage.headings.status === 'error' ? 1 : 0) +
+    (onPage.imageAlts.status === 'error' ? 1 : 0) +
+    links.filter(l => l.statusState === 'broken').length;
+
+  const warningCount =
+    (onPage.title.status === 'warning' ? 1 : 0) +
+    (onPage.description.status === 'warning' ? 1 : 0) +
+    (onPage.headings.status === 'warning' ? 1 : 0) +
+    (onPage.imageAlts.status === 'warning' ? 1 : 0) +
+    (onPage.canonical.status === 'missing' ? 1 : 0) +
+    (onPage.openGraph.status === 'missing' ? 1 : 0);
+
+  const passedCount =
+    (onPage.title.status === 'ok' ? 1 : 0) +
+    (onPage.description.status === 'ok' ? 1 : 0) +
+    (onPage.headings.status === 'ok' ? 1 : 0) +
+    (onPage.imageAlts.status === 'ok' ? 1 : 0) +
+    (onPage.canonical.status === 'ok' ? 1 : 0) +
+    (onPage.openGraph.status === 'ok' ? 1 : 0) +
+    links.filter(l => l.statusState === 'ok').length;
+
+  return { errorCount, warningCount, passedCount };
+}
+
+/**
+ * Pure recalculation of the overall numeric score, blending the existing
+ * on-page score with broken-link penalties and (when available) the average
+ * PageSpeed performance score. Returns the new clamped score WITHOUT mutating
+ * `results`; callers assign the result and update the grade themselves.
+ */
+export function recalculateOverallScore(results: AuditResults): number {
+  let baseScore = results.score;
+
+  const brokenLinks = results.links.filter(l => l.statusState === 'broken').length;
+  if (brokenLinks > 0) {
+    baseScore -= Math.min(15, brokenLinks * 2);
+  }
+
+  let performanceSum = 0;
+  let perfCounts = 0;
+  if (results.pageSpeedDesktop) {
+    performanceSum += results.pageSpeedDesktop.score;
+    perfCounts++;
+  }
+  if (results.pageSpeedMobile) {
+    performanceSum += results.pageSpeedMobile.score;
+    perfCounts++;
+  }
+
+  if (perfCounts > 0) {
+    const avgPerformance = performanceSum / perfCounts;
+    baseScore = Math.round((baseScore * 0.6) + (avgPerformance * 0.4));
+  }
+
+  return Math.max(0, Math.min(100, baseScore));
+}
+
+/**
  * Parses the effective HTTP status from a proxied response (preferring the
  * X-Status-Code header set by the CORS proxy) and applies the result to the
  * link. Shared by both the HEAD and GET fallback paths.

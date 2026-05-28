@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { runSEOAudit, validateLinks, fetchPageSpeed, calculateGrade } from '$lib/seoEngine';
+  import { runSEOAudit, validateLinks, fetchPageSpeed, calculateGrade, summarizeAudit, recalculateOverallScore as computeOverallScore } from '$lib/seoEngine';
   import type { AuditResults, LinkItem, PageSpeedMetric } from '$lib/seoEngine';
   import { executeSQLQuery, initSqlEngine } from '$lib/sqlEngine';
   import type { SQLQueryResult } from '$lib/sqlEngine';
@@ -70,27 +70,16 @@
     const results = auditResults;
     if (!results) return;
 
-    // Count errors and warnings
-    const errCount = (results.onPage.title.status === 'missing' ? 1 : 0) +
-      (results.onPage.description.status === 'missing' ? 1 : 0) +
-      (results.onPage.headings.status === 'error' ? 1 : 0) +
-      (results.onPage.imageAlts.status === 'error' ? 1 : 0) +
-      results.links.filter(l => l.statusState === 'broken').length;
-
-    const warnCount = (results.onPage.title.status === 'warning' ? 1 : 0) +
-      (results.onPage.description.status === 'warning' ? 1 : 0) +
-      (results.onPage.headings.status === 'warning' ? 1 : 0) +
-      (results.onPage.imageAlts.status === 'warning' ? 1 : 0) +
-      (results.onPage.canonical.status === 'missing' ? 1 : 0) +
-      (results.onPage.openGraph.status === 'missing' ? 1 : 0);
+    // Single source of truth for counts (shared with the on-screen metrics).
+    const summary = summarizeAudit(results);
 
     const historyItem: CrawlHistoryItem = {
       url: results.url,
       timestamp: results.timestamp || new Date().toISOString(),
       score: results.score,
       grade: results.grade,
-      errorCount: errCount,
-      warningCount: warnCount,
+      errorCount: summary.errorCount,
+      warningCount: summary.warningCount,
       results: $state.snapshot(results)
     };
 
@@ -274,34 +263,11 @@
     saveCrawlToHistory();
   }
 
-  // Score recalculations
+  // Score recalculations. The math lives in the (pure) engine fn; the mutation
+  // of reactive state stays here in the component.
   function recalculateOverallScore() {
     if (!auditResults) return;
-    
-    let baseScore = auditResults.score;
-    
-    const brokenLinks = auditResults.links.filter(l => l.statusState === 'broken').length;
-    if (brokenLinks > 0) {
-      baseScore -= Math.min(15, brokenLinks * 2);
-    }
-
-    let performanceSum = 0;
-    let perfCounts = 0;
-    if (auditResults.pageSpeedDesktop) {
-      performanceSum += auditResults.pageSpeedDesktop.score;
-      perfCounts++;
-    }
-    if (auditResults.pageSpeedMobile) {
-      performanceSum += auditResults.pageSpeedMobile.score;
-      perfCounts++;
-    }
-
-    if (perfCounts > 0) {
-      const avgPerformance = performanceSum / perfCounts;
-      baseScore = Math.round((baseScore * 0.6) + (avgPerformance * 0.4));
-    }
-
-    auditResults.score = Math.max(0, Math.min(100, baseScore));
+    auditResults.score = computeOverallScore(auditResults);
     auditResults.grade = calculateGrade(auditResults.score);
   }
 
@@ -382,33 +348,15 @@
     }
   }
 
-  // derived metrics values
-  const errorCount = $derived(auditResults ? 
-    (auditResults.onPage.title.status === 'missing' ? 1 : 0) +
-      (auditResults.onPage.description.status === 'missing' ? 1 : 0) +
-      (auditResults.onPage.headings.status === 'error' ? 1 : 0) +
-      (auditResults.onPage.imageAlts.status === 'error' ? 1 : 0) +
-      auditResults.links.filter(l => l.statusState === 'broken').length
-  : 0);
-
-  const warningCount = $derived(auditResults ? 
-    (auditResults.onPage.title.status === 'warning' ? 1 : 0) +
-      (auditResults.onPage.description.status === 'warning' ? 1 : 0) +
-      (auditResults.onPage.headings.status === 'warning' ? 1 : 0) +
-      (auditResults.onPage.imageAlts.status === 'warning' ? 1 : 0) +
-      (auditResults.onPage.canonical.status === 'missing' ? 1 : 0) +
-      (auditResults.onPage.openGraph.status === 'missing' ? 1 : 0)
-  : 0);
-
-  const passedCount = $derived(auditResults ? 
-    (auditResults.onPage.title.status === 'ok' ? 1 : 0) +
-      (auditResults.onPage.description.status === 'ok' ? 1 : 0) +
-      (auditResults.onPage.headings.status === 'ok' ? 1 : 0) +
-      (auditResults.onPage.imageAlts.status === 'ok' ? 1 : 0) +
-      (auditResults.onPage.canonical.status === 'ok' ? 1 : 0) +
-      (auditResults.onPage.openGraph.status === 'ok' ? 1 : 0) +
-      auditResults.links.filter(l => l.statusState === 'ok').length
-  : 0);
+  // Derived metric values from the single shared summary fn.
+  const summary = $derived(
+    auditResults
+      ? summarizeAudit(auditResults)
+      : { errorCount: 0, warningCount: 0, passedCount: 0 }
+  );
+  const errorCount = $derived(summary.errorCount);
+  const warningCount = $derived(summary.warningCount);
+  const passedCount = $derived(summary.passedCount);
 </script>
 
 <SEO path="crawl-detail" title={currentUrl ? `Audit: ${currentUrl}` : 'Crawling Detail'} />
