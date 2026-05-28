@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AuditResults } from '$lib/seoEngine';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
 
   let { auditResults }: { auditResults: AuditResults } = $props();
 
@@ -30,6 +31,22 @@
   const titlePercent = $derived(Math.min(100, (titleLength / 80) * 100));
   const descLength = $derived(auditResults.onPage.description.text.length);
   const descPercent = $derived(Math.min(100, (descLength / 200) * 100));
+
+  // Gauge band colors (custom thresholds, NOT the general scoreBand scheme).
+  const titleBand = $derived<'success' | 'warning' | 'error'>(
+    titleLength >= 50 && titleLength <= 60
+      ? 'success'
+      : (titleLength >= 30 && titleLength < 50) || (titleLength > 60 && titleLength <= 70)
+        ? 'warning'
+        : 'error'
+  );
+  const descBand = $derived<'success' | 'warning' | 'error'>(
+    descLength >= 110 && descLength <= 160
+      ? 'success'
+      : (descLength >= 80 && descLength < 110) || (descLength > 160 && descLength <= 180)
+        ? 'warning'
+        : 'error'
+  );
 
   // Determine skip-level warnings
   const headingWarnings = $derived.by(() => {
@@ -156,9 +173,7 @@
         <span>Title Length: <strong class="text-primary">{titleLength}</strong> characters</span>
         <span class="range-info">Optimal: 50-60</span>
       </div>
-      <div class="gauge-track">
-        <div class="gauge-fill" style="width: {titlePercent}%" class:gauge-green={titleLength >= 50 && titleLength <= 60} class:gauge-yellow={(titleLength >= 30 && titleLength < 50) || (titleLength > 60 && titleLength <= 70)} class:gauge-red={titleLength < 30 || titleLength > 70}></div>
-      </div>
+      <ProgressBar value={titlePercent} color={titleBand} height="10px" border />
       <div class="gauge-zones">
         <span>Too Short (&lt;30)</span>
         <span class="text-success text-center">Optimal (50-60)</span>
@@ -171,9 +186,7 @@
         <span>Meta Description Length: <strong class="text-primary">{descLength}</strong> characters</span>
         <span class="range-info">Optimal: 150-160</span>
       </div>
-      <div class="gauge-track">
-        <div class="gauge-fill" style="width: {descPercent}%" class:gauge-green={descLength >= 110 && descLength <= 160} class:gauge-yellow={(descLength >= 80 && descLength < 110) || (descLength > 160 && descLength <= 180)} class:gauge-red={descLength < 80 || descLength > 180}></div>
-      </div>
+      <ProgressBar value={descPercent} color={descBand} height="10px" border />
       <div class="gauge-zones">
         <span>Too Short (&lt;110)</span>
         <span class="text-success text-center">Optimal (150-160)</span>
@@ -607,24 +620,6 @@
     font-size: 12px;
     color: var(--color-muted);
   }
-
-  .gauge-track {
-    height: 10px;
-    background-color: var(--color-surface-soft);
-    border-radius: var(--rounded-pill);
-    overflow: hidden;
-    border: 1px solid var(--color-hairline);
-  }
-
-  .gauge-fill {
-    height: 100%;
-    border-radius: var(--rounded-pill);
-    transition: width 0.3s ease;
-  }
-
-  .gauge-green { background-color: var(--color-success); }
-  .gauge-yellow { background-color: var(--color-warning); }
-  .gauge-red { background-color: var(--color-error); }
 
   .gauge-zones {
     display: flex;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { calculateGrade, type AuditResults } from '$lib/seoEngine';
   import { scoreBand } from '$lib/scoreUtils';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
 
   let { 
     auditResults, 
@@ -208,9 +209,7 @@
           <span class="category-title">Meta & Content</span>
           <span class="category-grade" class:text-success={scoreBand(categoryScores.meta.score) === 'success'} class:text-warning={scoreBand(categoryScores.meta.score) === 'warning'} class:text-error={scoreBand(categoryScores.meta.score) === 'error'}>{categoryScores.meta.grade}</span>
         </div>
-        <div class="progress-bar-container">
-          <div class="progress-bar-fill" style="width: {categoryScores.meta.score}%" class:fill-success={scoreBand(categoryScores.meta.score) === 'success'} class:fill-warning={scoreBand(categoryScores.meta.score) === 'warning'} class:fill-error={scoreBand(categoryScores.meta.score) === 'error'}></div>
-        </div>
+        <ProgressBar value={categoryScores.meta.score} band={categoryScores.meta.score} />
         <span class="score-label">{categoryScores.meta.score}/100</span>
       </div>
 
@@ -219,9 +218,7 @@
           <span class="category-title">Structure & Hierarchy</span>
           <span class="category-grade" class:text-success={scoreBand(categoryScores.structure.score) === 'success'} class:text-warning={scoreBand(categoryScores.structure.score) === 'warning'} class:text-error={scoreBand(categoryScores.structure.score) === 'error'}>{categoryScores.structure.grade}</span>
         </div>
-        <div class="progress-bar-container">
-          <div class="progress-bar-fill" style="width: {categoryScores.structure.score}%" class:fill-success={scoreBand(categoryScores.structure.score) === 'success'} class:fill-warning={scoreBand(categoryScores.structure.score) === 'warning'} class:fill-error={scoreBand(categoryScores.structure.score) === 'error'}></div>
-        </div>
+        <ProgressBar value={categoryScores.structure.score} band={categoryScores.structure.score} />
         <span class="score-label">{categoryScores.structure.score}/100</span>
       </div>
 
@@ -230,9 +227,7 @@
           <span class="category-title">Media Alt text</span>
           <span class="category-grade" class:text-success={scoreBand(categoryScores.media.score) === 'success'} class:text-warning={scoreBand(categoryScores.media.score) === 'warning'} class:text-error={scoreBand(categoryScores.media.score) === 'error'}>{categoryScores.media.grade}</span>
         </div>
-        <div class="progress-bar-container">
-          <div class="progress-bar-fill" style="width: {categoryScores.media.score}%" class:fill-success={scoreBand(categoryScores.media.score) === 'success'} class:fill-warning={scoreBand(categoryScores.media.score) === 'warning'} class:fill-error={scoreBand(categoryScores.media.score) === 'error'}></div>
-        </div>
+        <ProgressBar value={categoryScores.media.score} band={categoryScores.media.score} />
         <span class="score-label">{categoryScores.media.score}/100</span>
       </div>
 
@@ -241,9 +236,7 @@
           <span class="category-title">Links Quality</span>
           <span class="category-grade" class:text-success={scoreBand(categoryScores.links.score) === 'success'} class:text-warning={scoreBand(categoryScores.links.score) === 'warning'} class:text-error={scoreBand(categoryScores.links.score) === 'error'}>{categoryScores.links.grade}</span>
         </div>
-        <div class="progress-bar-container">
-          <div class="progress-bar-fill" style="width: {categoryScores.links.score}%" class:fill-success={scoreBand(categoryScores.links.score) === 'success'} class:fill-warning={scoreBand(categoryScores.links.score) === 'warning'} class:fill-error={scoreBand(categoryScores.links.score) === 'error'}></div>
-        </div>
+        <ProgressBar value={categoryScores.links.score} band={categoryScores.links.score} />
         <span class="score-label">{categoryScores.links.score}/100</span>
       </div>
 
@@ -256,9 +249,7 @@
             <span class="category-grade text-muted">N/A</span>
           {/if}
         </div>
-        <div class="progress-bar-container">
-          <div class="progress-bar-fill" style="width: {categoryScores.performance?.score ?? 0}%" class:fill-success={categoryScores.performance && scoreBand(categoryScores.performance.score) === 'success'} class:fill-warning={categoryScores.performance && scoreBand(categoryScores.performance.score) === 'warning'} class:fill-error={categoryScores.performance && scoreBand(categoryScores.performance.score) === 'error'}></div>
-        </div>
+        <ProgressBar value={categoryScores.performance?.score ?? 0} band={categoryScores.performance?.score} />
         {#if categoryScores.performance}
           <span class="score-label">{categoryScores.performance.score}/100</span>
         {:else}
@@ -375,23 +366,6 @@
     font-weight: 700;
     font-family: var(--font-family-sans);
   }
-
-  .progress-bar-container {
-    height: 6px;
-    background-color: var(--color-surface-soft);
-    border-radius: var(--rounded-pill);
-    overflow: hidden;
-  }
-
-  .progress-bar-fill {
-    height: 100%;
-    border-radius: var(--rounded-pill);
-    transition: width 0.3s ease;
-  }
-
-  .fill-success { background-color: var(--color-success); }
-  .fill-warning { background-color: var(--color-warning); }
-  .fill-error { background-color: var(--color-error); }
 
   .score-label {
     font-size: 11px;

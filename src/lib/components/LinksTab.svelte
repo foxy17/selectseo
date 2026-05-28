@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AuditResults, LinkItem } from '$lib/seoEngine';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
 
   let { 
     auditResults, 
@@ -215,9 +216,7 @@
         <span class="progress-label font-mono">HYPERLINKS CRAWLER STATUS</span>
         <span class="progress-ratio font-mono">{checkedLinksCount} / {totalLinksCount} inspected</span>
       </div>
-      <div class="progress-bar-container mt-2">
-        <div class="progress-bar-fill fill-warning" style="width: {(checkedLinksCount / totalLinksCount) * 100}%"></div>
-      </div>
+      <ProgressBar value={(checkedLinksCount / totalLinksCount) * 100} transition="0.2s" />
       <p class="progress-tip font-mono text-muted">Scanning pages in background... Checked URLs are updating in real-time.</p>
     </div>
   {/if}
@@ -781,19 +780,6 @@
 
   .progress-ratio {
     color: var(--color-on-dark);
-  }
-
-  .progress-bar-container {
-    height: 6px;
-    background-color: var(--color-surface-soft);
-    border-radius: var(--rounded-pill);
-    overflow: hidden;
-  }
-
-  .progress-bar-fill {
-    height: 100%;
-    border-radius: var(--rounded-pill);
-    transition: width 0.2s ease;
   }
 
   .progress-tip {

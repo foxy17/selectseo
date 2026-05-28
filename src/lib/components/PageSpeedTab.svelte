@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AuditResults } from '$lib/seoEngine';
   import { lighthouseBand, lighthouseHex } from '$lib/scoreUtils';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
 
   let { 
     auditResults, 
@@ -155,9 +156,7 @@
                 <span class="vital-title">Largest Contentful Paint (LCP)</span>
                 <span class="vital-value" style="color: {getLcpStatus(auditResults.pageSpeedDesktop.lcp).color}">{auditResults.pageSpeedDesktop.lcp}</span>
               </div>
-              <div class="range-track">
-                <div class="range-fill" style="width: {getLcpStatus(auditResults.pageSpeedDesktop.lcp).pct}%; background-color: {getLcpStatus(auditResults.pageSpeedDesktop.lcp).color}"></div>
-              </div>
+              <ProgressBar value={getLcpStatus(auditResults.pageSpeedDesktop.lcp).pct} color={getLcpStatus(auditResults.pageSpeedDesktop.lcp).color} track="var(--color-hairline)" />
               <div class="range-labels font-mono text-muted">
                 <span>0s (Good)</span>
                 <span class="text-center">2.5s</span>
@@ -171,9 +170,7 @@
                 <span class="vital-title">Total Blocking Time (TBT)</span>
                 <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedDesktop.tbt).color}">{auditResults.pageSpeedDesktop.tbt}</span>
               </div>
-              <div class="range-track">
-                <div class="range-fill" style="width: {getTbtStatus(auditResults.pageSpeedDesktop.tbt).pct}%; background-color: {getTbtStatus(auditResults.pageSpeedDesktop.tbt).color}"></div>
-              </div>
+              <ProgressBar value={getTbtStatus(auditResults.pageSpeedDesktop.tbt).pct} color={getTbtStatus(auditResults.pageSpeedDesktop.tbt).color} track="var(--color-hairline)" />
               <div class="range-labels font-mono text-muted">
                 <span>0ms (Good)</span>
                 <span class="text-center">200ms</span>
@@ -187,9 +184,7 @@
                 <span class="vital-title">Cumulative Layout Shift (CLS)</span>
                 <span class="vital-value" style="color: {getClsStatus(auditResults.pageSpeedDesktop.cls).color}">{auditResults.pageSpeedDesktop.cls}</span>
               </div>
-              <div class="range-track">
-                <div class="range-fill" style="width: {getClsStatus(auditResults.pageSpeedDesktop.cls).pct}%; background-color: {getClsStatus(auditResults.pageSpeedDesktop.cls).color}"></div>
-              </div>
+              <ProgressBar value={getClsStatus(auditResults.pageSpeedDesktop.cls).pct} color={getClsStatus(auditResults.pageSpeedDesktop.cls).color} track="var(--color-hairline)" />
               <div class="range-labels font-mono text-muted">
                 <span>0 (Good)</span>
                 <span class="text-center">0.10</span>
@@ -239,9 +234,7 @@
                 <span class="vital-title">Largest Contentful Paint (LCP)</span>
                 <span class="vital-value" style="color: {getLcpStatus(auditResults.pageSpeedMobile.lcp).color}">{auditResults.pageSpeedMobile.lcp}</span>
               </div>
-              <div class="range-track">
-                <div class="range-fill" style="width: {getLcpStatus(auditResults.pageSpeedMobile.lcp).pct}%; background-color: {getLcpStatus(auditResults.pageSpeedMobile.lcp).color}"></div>
-              </div>
+              <ProgressBar value={getLcpStatus(auditResults.pageSpeedMobile.lcp).pct} color={getLcpStatus(auditResults.pageSpeedMobile.lcp).color} track="var(--color-hairline)" />
               <div class="range-labels font-mono text-muted">
                 <span>0s (Good)</span>
                 <span class="text-center">2.5s</span>
@@ -255,9 +248,7 @@
                 <span class="vital-title">Total Blocking Time (TBT)</span>
                 <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedMobile.tbt).color}">{auditResults.pageSpeedMobile.tbt}</span>
               </div>
-              <div class="range-track">
-                <div class="range-fill" style="width: {getTbtStatus(auditResults.pageSpeedMobile.tbt).pct}%; background-color: {getTbtStatus(auditResults.pageSpeedMobile.tbt).color}"></div>
-              </div>
+              <ProgressBar value={getTbtStatus(auditResults.pageSpeedMobile.tbt).pct} color={getTbtStatus(auditResults.pageSpeedMobile.tbt).color} track="var(--color-hairline)" />
               <div class="range-labels font-mono text-muted">
                 <span>0ms (Good)</span>
                 <span class="text-center">200ms</span>
@@ -271,9 +262,7 @@
                 <span class="vital-title">Cumulative Layout Shift (CLS)</span>
                 <span class="vital-value" style="color: {getClsStatus(auditResults.pageSpeedMobile.cls).color}">{auditResults.pageSpeedMobile.cls}</span>
               </div>
-              <div class="range-track">
-                <div class="range-fill" style="width: {getClsStatus(auditResults.pageSpeedMobile.cls).pct}%; background-color: {getClsStatus(auditResults.pageSpeedMobile.cls).color}"></div>
-              </div>
+              <ProgressBar value={getClsStatus(auditResults.pageSpeedMobile.cls).pct} color={getClsStatus(auditResults.pageSpeedMobile.cls).color} track="var(--color-hairline)" />
               <div class="range-labels font-mono text-muted">
                 <span>0 (Good)</span>
                 <span class="text-center">0.10</span>
@@ -483,19 +472,6 @@
 
   .vital-title {
     font-weight: 600;
-  }
-
-  .range-track {
-    height: 6px;
-    background-color: var(--color-hairline);
-    border-radius: var(--rounded-pill);
-    overflow: hidden;
-  }
-
-  .range-fill {
-    height: 100%;
-    border-radius: var(--rounded-pill);
-    transition: width 0.3s ease;
   }
 
   .range-labels {
