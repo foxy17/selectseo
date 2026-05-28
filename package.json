@@ -3,6 +3,9 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=20 <21"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -21,8 +24,6 @@
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.57.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
-		"@types/dompurify": "^3.0.5",
-		"@types/marked": "^5.0.2",
 		"@types/sql.js": "^1.4.11",
 		"eslint": "^10.4.0",
 		"eslint-config-prettier": "^10.1.8",
