@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { serializeJsonLd } from '$lib/jsonLd';
+
   interface Props {
     title?: string;
     description?: string;
@@ -60,10 +62,10 @@
   {#if schema}
     {#if Array.isArray(schema)}
       {#each schema as s}
-        {@html `<script type="application/ld+json">${JSON.stringify(s)}</script>`}
+        {@html `<script type="application/ld+json">${serializeJsonLd(s)}</script>`}
       {/each}
     {:else}
-      {@html `<script type="application/ld+json">${JSON.stringify(schema)}</script>`}
+      {@html `<script type="application/ld+json">${serializeJsonLd(schema)}</script>`}
     {/if}
   {/if}
 </svelte:head>
