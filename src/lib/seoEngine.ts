@@ -125,10 +125,33 @@ export interface LinkItem {
   redirectDestination: string | null;
 }
 
+/** Minimal subset of a Lighthouse audit object actually read by this app. */
+interface LighthouseAudit {
+  id?: string;
+  title: string;
+  description?: string;
+  score: number | null;
+  scoreDisplayMode?: string;
+  displayValue?: string;
+  numericValue?: number;
+  details?: { type?: string; overallSavingsMs?: number };
+}
+
+/** Minimal subset of the Lighthouse result actually read by this app. */
+interface LighthouseResult {
+  categories: { performance?: { score: number | null } };
+  audits: Record<string, LighthouseAudit>;
+}
+
+/** Minimal subset of the PageSpeed Insights API response actually read by this app. */
+interface PageSpeedApiResponse {
+  lighthouseResult?: LighthouseResult;
+}
+
 export interface PageSpeedMetric {
   score: number; // 0 to 100
   lcp: string; // Largest Contentful Paint
-  fid: string; // First Input Delay (or equivalent)
+  tbt: string; // Total Blocking Time
   cls: string; // Cumulative Layout Shift
   fcp: string; // First Contentful Paint
   speedIndex: string;
@@ -855,8 +878,11 @@ export async function fetchPageSpeed(
     throw new Error(`PageSpeed API error: ${errMsg}`);
   }
 
-  const data = await res.json();
-  const lighthouse = data.lighthouseResult;
+  const data = (await res.json()) as PageSpeedApiResponse;
+  const lighthouse = data?.lighthouseResult;
+  if (!lighthouse?.categories?.performance) {
+    throw new Error('PageSpeed returned no Lighthouse performance data.');
+  }
   const perfCategory = lighthouse.categories.performance;
   const score = Math.round((perfCategory.score || 0) * 100);
 
@@ -873,24 +899,30 @@ export async function fetchPageSpeed(
   const ttfb = lighthouse.audits['server-response-time']?.displayValue || 'N/A';
 
   const audits = lighthouse.audits;
-  
-  // Extract passed audits list
+
+  // Lighthouse flags optimization "opportunity" audits via details.type. We use that
+  // documented signal instead of fragile id substring matching. 'critical-opportunity'
+  // covers the same concept for higher-impact items.
+  const isOpportunity = (audit: LighthouseAudit): boolean =>
+    audit.details?.type === 'opportunity' || audit.details?.type === 'critical-opportunity';
+
+  // Extract passed audits list (opportunities the page already handles well)
   const passedAudits: string[] = [];
   for (const id in audits) {
     const audit = audits[id];
-    if (audit.score !== null && audit.score >= 0.9 && (audit.details?.type === 'opportunity' || id.includes('minify') || id.includes('optimize') || id.includes('responsive'))) {
+    if (audit.score !== null && audit.score >= 0.9 && isOpportunity(audit)) {
       passedAudits.push(audit.title);
     }
   }
 
-  // Extract key failing recommendations
+  // Extract key failing recommendations (opportunities the page is failing)
   const recommendations: PageSpeedMetric['recommendations'] = [];
   for (const id in audits) {
     const audit = audits[id];
-    if (audit.score !== null && audit.score < 0.9 && (audit.details?.type === 'opportunity' || audit.details?.type === 'critical-opportunity' || id.includes('unused') || id.includes('render-blocking'))) {
+    if (audit.score !== null && audit.score < 0.9 && isOpportunity(audit)) {
       recommendations.push({
         title: audit.title,
-        description: audit.description,
+        description: audit.description ?? '',
         displayValue: audit.displayValue || '',
         impact: audit.details?.overallSavingsMs || audit.numericValue || 0
       });
@@ -903,7 +935,7 @@ export async function fetchPageSpeed(
   return {
     score,
     lcp,
-    fid: tbt, // use total blocking time as key delay indicator
+    tbt, // Total Blocking Time
     cls,
     fcp,
     speedIndex,

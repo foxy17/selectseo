@@ -300,7 +300,7 @@ export function exportSEOReport(results: AuditResults): void {
       // Core Web Vitals
       doc.setFont('Helvetica', 'normal');
       doc.setTextColor(80, 80, 80);
-      doc.text(`LCP: ${metrics.lcp}   |   TBT: ${metrics.fid}   |   CLS: ${metrics.cls}`, margin + 70, y + 9);
+      doc.text(`LCP: ${metrics.lcp}   |   TBT: ${metrics.tbt}   |   CLS: ${metrics.cls}`, margin + 70, y + 9);
       y += 18;
 
       // Opportunities

@@ -91,7 +91,7 @@
     
     const lcpDiff = parseVal(m.lcp) - parseVal(d.lcp);
     const clsDiff = parseVal(m.cls) - parseVal(d.cls);
-    const tbtDiff = parseVal(m.fid) - parseVal(d.fid);
+    const tbtDiff = parseVal(m.tbt) - parseVal(d.tbt);
 
     return {
       score: m.score - d.score,
@@ -181,10 +181,10 @@
             <div class="vital-range-row mt-4 clickable" onclick={() => toggleExplainer('tbt')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('tbt')}>
               <div class="label-row">
                 <span class="vital-title">Total Blocking Time (TBT)</span>
-                <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedDesktop.fid).color}">{auditResults.pageSpeedDesktop.fid}</span>
+                <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedDesktop.tbt).color}">{auditResults.pageSpeedDesktop.tbt}</span>
               </div>
               <div class="range-track">
-                <div class="range-fill" style="width: {getTbtStatus(auditResults.pageSpeedDesktop.fid).pct}%; background-color: {getTbtStatus(auditResults.pageSpeedDesktop.fid).color}"></div>
+                <div class="range-fill" style="width: {getTbtStatus(auditResults.pageSpeedDesktop.tbt).pct}%; background-color: {getTbtStatus(auditResults.pageSpeedDesktop.tbt).color}"></div>
               </div>
               <div class="range-labels font-mono text-muted">
                 <span>0ms (Good)</span>
@@ -265,10 +265,10 @@
             <div class="vital-range-row mt-4 clickable" onclick={() => toggleExplainer('tbt')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('tbt')}>
               <div class="label-row">
                 <span class="vital-title">Total Blocking Time (TBT)</span>
-                <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedMobile.fid).color}">{auditResults.pageSpeedMobile.fid}</span>
+                <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedMobile.tbt).color}">{auditResults.pageSpeedMobile.tbt}</span>
               </div>
               <div class="range-track">
-                <div class="range-fill" style="width: {getTbtStatus(auditResults.pageSpeedMobile.fid).pct}%; background-color: {getTbtStatus(auditResults.pageSpeedMobile.fid).color}"></div>
+                <div class="range-fill" style="width: {getTbtStatus(auditResults.pageSpeedMobile.tbt).pct}%; background-color: {getTbtStatus(auditResults.pageSpeedMobile.tbt).color}"></div>
               </div>
               <div class="range-labels font-mono text-muted">
                 <span>0ms (Good)</span>
