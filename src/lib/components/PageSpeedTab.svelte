@@ -1,9 +1,8 @@
 <script lang="ts">
   import type { AuditResults } from '$lib/seoEngine';
-  import { lighthouseBand, lighthouseHex } from '$lib/scoreUtils';
-  import ProgressBar from '$lib/components/ProgressBar.svelte';
+  import StrategyCard from '$lib/components/StrategyCard.svelte';
 
-  let { 
+  let {
     auditResults, 
     isFetchingMobileSpeed, 
     isFetchingDesktopSpeed, 
@@ -36,38 +35,6 @@
   function toggleRec(recTitle: string) {
     expandedRecs[recTitle] = !expandedRecs[recTitle];
   }
-
-  // Parse string values (like "1.8 s" or "250 ms") into numbers for range bars
-  function parseMetric(valStr: string): number {
-    if (!valStr || valStr === 'N/A') return 0;
-    const num = parseFloat(valStr.replace(/[^0-9.]/g, ''));
-    return isNaN(num) ? 0 : num;
-  }
-
-  // Vitals threshold classifiers
-  const getLcpStatus = (valStr: string) => {
-    const val = parseMetric(valStr);
-    if (val === 0) return { pct: 0, color: 'var(--color-muted)', label: 'N/A' };
-    if (val <= 2.5) return { pct: (val / 2.5) * 33, color: 'var(--color-success)', label: 'Good' };
-    if (val <= 4.0) return { pct: 33 + ((val - 2.5) / 1.5) * 33, color: 'var(--color-warning)', label: 'Needs Improvement' };
-    return { pct: 66 + Math.min(34, ((val - 4.0) / 4.0) * 34), color: 'var(--color-error)', label: 'Poor' };
-  };
-
-  const getTbtStatus = (valStr: string) => {
-    const val = parseMetric(valStr);
-    if (val === 0) return { pct: 0, color: 'var(--color-muted)', label: 'N/A' };
-    if (val <= 200) return { pct: (val / 200) * 33, color: 'var(--color-success)', label: 'Good' };
-    if (val <= 600) return { pct: 33 + ((val - 200) / 400) * 33, color: 'var(--color-warning)', label: 'Needs Improvement' };
-    return { pct: 66 + Math.min(34, ((val - 600) / 1000) * 34), color: 'var(--color-error)', label: 'Poor' };
-  };
-
-  const getClsStatus = (valStr: string) => {
-    const val = parseFloat(valStr);
-    if (isNaN(val)) return { pct: 0, color: 'var(--color-muted)', label: 'N/A' };
-    if (val <= 0.1) return { pct: (val / 0.1) * 33, color: 'var(--color-success)', label: 'Good' };
-    if (val <= 0.25) return { pct: 33 + ((val - 0.1) / 0.15) * 33, color: 'var(--color-warning)', label: 'Needs Improvement' };
-    return { pct: 66 + Math.min(34, ((val - 0.25) / 0.25) * 34), color: 'var(--color-error)', label: 'Poor' };
-  };
 
   // Compare mobile vs desktop differences
   const deltaMetrics = $derived.by(() => {
@@ -116,163 +83,20 @@
     
     <!-- Strategy Overview cards with circular animated gauges -->
     <div class="pagespeed-grids grid grid-2">
-      
-      <!-- Desktop panel -->
-      <div class="strategy-card card-dark">
-        <div class="card-header-row">
-          <h3 class="title-md">Desktop Vitals</h3>
-          {#if pageSpeedDesktopError}
-            <span class="badge badge-error">API Error</span>
-          {:else if auditResults.pageSpeedDesktop}
-            <span class="badge badge-success">Google Verified</span>
-          {/if}
-        </div>
-
-        {#if pageSpeedDesktopError}
-          <p class="error-msg font-mono">{pageSpeedDesktopError}</p>
-        {:else if auditResults.pageSpeedDesktop}
-          {@const score = auditResults.pageSpeedDesktop.score}
-          <div class="gauge-score-row mt-2">
-            <div class="gauge-wrapper">
-              <svg class="progress-gauge" width="100" height="100" viewBox="0 0 100 100">
-                <circle class="gauge-bg" cx="50" cy="50" r="42" stroke="#222" stroke-width="8" fill="none" />
-                <circle class="gauge-fill" cx="50" cy="50" r="42" stroke={lighthouseHex(score)} stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset={263.89 - (263.89 * score) / 100} fill="none" stroke-linecap="round" />
-              </svg>
-              <span class="gauge-text" style="color: {lighthouseHex(score)}">{score}</span>
-            </div>
-            <div class="score-meta">
-              <span class="score-grade font-mono" class:text-success={lighthouseBand(score) === 'success'} class:text-warning={lighthouseBand(score) === 'warning'} class:text-error={lighthouseBand(score) === 'error'}>
-                {#if score >= 90}GOOD{:else if score >= 50}NEEDS IMPROVEMENT{:else}POOR{/if}
-              </span>
-              <p class="text-muted font-sans mt-1">Lighthouse Desktop simulation audit score.</p>
-            </div>
-          </div>
-
-          <!-- Threshold range bars for vitals -->
-          <div class="vitals-range-list mt-4 font-sans">
-            <!-- LCP -->
-            <div class="vital-range-row clickable" onclick={() => toggleExplainer('lcp')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('lcp')}>
-              <div class="label-row">
-                <span class="vital-title">Largest Contentful Paint (LCP)</span>
-                <span class="vital-value" style="color: {getLcpStatus(auditResults.pageSpeedDesktop.lcp).color}">{auditResults.pageSpeedDesktop.lcp}</span>
-              </div>
-              <ProgressBar value={getLcpStatus(auditResults.pageSpeedDesktop.lcp).pct} color={getLcpStatus(auditResults.pageSpeedDesktop.lcp).color} track="var(--color-hairline)" />
-              <div class="range-labels font-mono text-muted">
-                <span>0s (Good)</span>
-                <span class="text-center">2.5s</span>
-                <span class="text-right">4.0s (Poor)</span>
-              </div>
-            </div>
-
-            <!-- TBT -->
-            <div class="vital-range-row mt-4 clickable" onclick={() => toggleExplainer('tbt')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('tbt')}>
-              <div class="label-row">
-                <span class="vital-title">Total Blocking Time (TBT)</span>
-                <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedDesktop.tbt).color}">{auditResults.pageSpeedDesktop.tbt}</span>
-              </div>
-              <ProgressBar value={getTbtStatus(auditResults.pageSpeedDesktop.tbt).pct} color={getTbtStatus(auditResults.pageSpeedDesktop.tbt).color} track="var(--color-hairline)" />
-              <div class="range-labels font-mono text-muted">
-                <span>0ms (Good)</span>
-                <span class="text-center">200ms</span>
-                <span class="text-right">600ms (Poor)</span>
-              </div>
-            </div>
-
-            <!-- CLS -->
-            <div class="vital-range-row mt-4 clickable" onclick={() => toggleExplainer('cls')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('cls')}>
-              <div class="label-row">
-                <span class="vital-title">Cumulative Layout Shift (CLS)</span>
-                <span class="vital-value" style="color: {getClsStatus(auditResults.pageSpeedDesktop.cls).color}">{auditResults.pageSpeedDesktop.cls}</span>
-              </div>
-              <ProgressBar value={getClsStatus(auditResults.pageSpeedDesktop.cls).pct} color={getClsStatus(auditResults.pageSpeedDesktop.cls).color} track="var(--color-hairline)" />
-              <div class="range-labels font-mono text-muted">
-                <span>0 (Good)</span>
-                <span class="text-center">0.10</span>
-                <span class="text-right">0.25 (Poor)</span>
-              </div>
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <!-- Mobile panel -->
-      <div class="strategy-card card-dark">
-        <div class="card-header-row">
-          <h3 class="title-md">Mobile Vitals</h3>
-          {#if pageSpeedMobileError}
-            <span class="badge badge-error">API Error</span>
-          {:else if auditResults.pageSpeedMobile}
-            <span class="badge badge-success">Google Verified</span>
-          {/if}
-        </div>
-
-        {#if pageSpeedMobileError}
-          <p class="error-msg font-mono">{pageSpeedMobileError}</p>
-        {:else if auditResults.pageSpeedMobile}
-          {@const score = auditResults.pageSpeedMobile.score}
-          <div class="gauge-score-row mt-2">
-            <div class="gauge-wrapper">
-              <svg class="progress-gauge" width="100" height="100" viewBox="0 0 100 100">
-                <circle class="gauge-bg" cx="50" cy="50" r="42" stroke="#222" stroke-width="8" fill="none" />
-                <circle class="gauge-fill" cx="50" cy="50" r="42" stroke={lighthouseHex(score)} stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset={263.89 - (263.89 * score) / 100} fill="none" stroke-linecap="round" />
-              </svg>
-              <span class="gauge-text" style="color: {lighthouseHex(score)}">{score}</span>
-            </div>
-            <div class="score-meta">
-              <span class="score-grade font-mono" class:text-success={lighthouseBand(score) === 'success'} class:text-warning={lighthouseBand(score) === 'warning'} class:text-error={lighthouseBand(score) === 'error'}>
-                {#if score >= 90}GOOD{:else if score >= 50}NEEDS IMPROVEMENT{:else}POOR{/if}
-              </span>
-              <p class="text-muted font-sans mt-1">Lighthouse Mobile simulation (moto g4 throttle).</p>
-            </div>
-          </div>
-
-          <!-- Threshold range bars for vitals -->
-          <div class="vitals-range-list mt-4 font-sans">
-            <!-- LCP -->
-            <div class="vital-range-row clickable" onclick={() => toggleExplainer('lcp')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('lcp')}>
-              <div class="label-row">
-                <span class="vital-title">Largest Contentful Paint (LCP)</span>
-                <span class="vital-value" style="color: {getLcpStatus(auditResults.pageSpeedMobile.lcp).color}">{auditResults.pageSpeedMobile.lcp}</span>
-              </div>
-              <ProgressBar value={getLcpStatus(auditResults.pageSpeedMobile.lcp).pct} color={getLcpStatus(auditResults.pageSpeedMobile.lcp).color} track="var(--color-hairline)" />
-              <div class="range-labels font-mono text-muted">
-                <span>0s (Good)</span>
-                <span class="text-center">2.5s</span>
-                <span class="text-right">4.0s (Poor)</span>
-              </div>
-            </div>
-
-            <!-- TBT -->
-            <div class="vital-range-row mt-4 clickable" onclick={() => toggleExplainer('tbt')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('tbt')}>
-              <div class="label-row">
-                <span class="vital-title">Total Blocking Time (TBT)</span>
-                <span class="vital-value" style="color: {getTbtStatus(auditResults.pageSpeedMobile.tbt).color}">{auditResults.pageSpeedMobile.tbt}</span>
-              </div>
-              <ProgressBar value={getTbtStatus(auditResults.pageSpeedMobile.tbt).pct} color={getTbtStatus(auditResults.pageSpeedMobile.tbt).color} track="var(--color-hairline)" />
-              <div class="range-labels font-mono text-muted">
-                <span>0ms (Good)</span>
-                <span class="text-center">200ms</span>
-                <span class="text-right">600ms (Poor)</span>
-              </div>
-            </div>
-
-            <!-- CLS -->
-            <div class="vital-range-row mt-4 clickable" onclick={() => toggleExplainer('cls')} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && toggleExplainer('cls')}>
-              <div class="label-row">
-                <span class="vital-title">Cumulative Layout Shift (CLS)</span>
-                <span class="vital-value" style="color: {getClsStatus(auditResults.pageSpeedMobile.cls).color}">{auditResults.pageSpeedMobile.cls}</span>
-              </div>
-              <ProgressBar value={getClsStatus(auditResults.pageSpeedMobile.cls).pct} color={getClsStatus(auditResults.pageSpeedMobile.cls).color} track="var(--color-hairline)" />
-              <div class="range-labels font-mono text-muted">
-                <span>0 (Good)</span>
-                <span class="text-center">0.10</span>
-                <span class="text-right">0.25 (Poor)</span>
-              </div>
-            </div>
-          </div>
-        {/if}
-      </div>
-
+      <StrategyCard
+        data={auditResults.pageSpeedDesktop}
+        label="Desktop"
+        error={pageSpeedDesktopError}
+        description="Lighthouse Desktop simulation audit score."
+        onExplain={toggleExplainer}
+      />
+      <StrategyCard
+        data={auditResults.pageSpeedMobile}
+        label="Mobile"
+        error={pageSpeedMobileError}
+        description="Lighthouse Mobile simulation (moto g4 throttle)."
+        onExplain={toggleExplainer}
+      />
     </div>
 
     <!-- Explainer Drawer Panel -->
@@ -412,77 +236,7 @@
   .mt-2 { margin-top: var(--spacing-xs); }
   .ml-2 { margin-left: var(--spacing-xs); }
 
-  /* Gauges */
-  .gauge-score-row {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-  }
-
-  .gauge-wrapper {
-    position: relative;
-    width: 100px;
-    height: 100px;
-  }
-
-  .progress-gauge {
-    transform: rotate(-90deg);
-  }
-
-  .gauge-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 24px;
-    font-weight: 700;
-    font-family: var(--font-family-mono);
-  }
-
-  .score-meta {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .score-grade {
-    font-size: 14px;
-    font-weight: 700;
-  }
-
-  /* Range Bars */
-  .vital-range-row {
-    background-color: var(--color-surface-soft);
-    padding: var(--spacing-sm);
-    border-radius: var(--rounded-md);
-    border: 1px solid var(--color-hairline);
-    transition: border-color 0.15s ease;
-  }
-
-  .vital-range-row:hover {
-    border-color: var(--color-primary-active);
-  }
-
-  .label-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 14px;
-    margin-bottom: 6px;
-    color: var(--color-body-strong);
-  }
-
-  .vital-title {
-    font-weight: 600;
-  }
-
-  .range-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 9px;
-    margin-top: 4px;
-  }
-
   .text-center { text-align: center; flex: 1; }
-  .text-right { text-align: right; }
 
   /* Explainer panel drawer */
   .explainer-panel-box {
