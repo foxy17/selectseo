@@ -142,7 +142,7 @@
       
       {#if auditResults.pageSpeedMobile?.recommendations && auditResults.pageSpeedMobile.recommendations.length > 0}
         <div class="rec-list mt-2">
-          {#each auditResults.pageSpeedMobile.recommendations as rec}
+          {#each auditResults.pageSpeedMobile.recommendations as rec (rec.title)}
             <Collapsible cardClass="rec-card card-dark collapsible-rec" headerClass="rec-header-btn" bodyClass="rec-body" arrowSpaced>
               {#snippet header()}
                 <div class="rec-header-left">
@@ -177,7 +177,7 @@
 
         {#if showPassedAudits}
           <div class="passed-grid mt-2 font-mono">
-            {#each auditResults.pageSpeedMobile.passedAudits as audit}
+            {#each auditResults.pageSpeedMobile.passedAudits as audit (audit)}
               <div class="passed-item text-success">✓ {audit}</div>
             {/each}
           </div>

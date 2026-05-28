@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { initSqlEngine } from '$lib/sqlEngine';
   import SEO from '$lib/components/SEO.svelte';
   import ConsoleHud from '$lib/components/ConsoleHud.svelte';
   import AuditSettings from '$lib/components/AuditSettings.svelte';
@@ -66,7 +65,6 @@
     scanLogs = [...scanLogs, `[${timestamp}] ${message}`];
   }
 
-  let typingActive = true;
   const initMessages = [
     "SYSTEM: Booting SelectSEO Neural Auditor...",
     "DATABASE: SQLite virtual schema mounted successfully.",
@@ -85,7 +83,10 @@
     };
     window.addEventListener('new-crawl', handleNewCrawl);
 
-    // Start typewriter effect for terminal
+    // Start typewriter effect for terminal.
+    // `typingActive` is an onMount-local cancellation token: the typeChar loop
+    // and the cleanup below both close over it, so the typewriter stops on unmount.
+    let typingActive = true;
     let msgIdx = 0;
     let charIdx = 0;
     let currentLine = "";

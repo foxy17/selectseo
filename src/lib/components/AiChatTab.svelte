@@ -303,7 +303,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
                 // PREDEFINED_SEO_QUICK_ACTIONS
               </div>
               <div class="nudges-grid">
-                {#each nudges as nudge}
+                {#each nudges as nudge (nudge.id)}
                   <button class="nudge-card card-dark" onclick={() => runNudge(nudge.prompt)}>
                     <div class="nudge-card-header">
                       <span class="nudge-icon">{nudge.icon}</span>
@@ -321,7 +321,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
           </div>
         {:else}
           <!-- State 3.2: Active Conversation State -->
-          {#each messages as msg}
+          {#each messages as msg, i (i)}
             <div class="message-wrapper" class:user-msg={msg.role === 'user'}>
               <div class="message-bubble" class:assistant={msg.role === 'assistant'} class:user={msg.role === 'user'}>
                 <div class="msg-author font-mono">
@@ -347,7 +347,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
       <div class="chat-input-area-container">
         {#if messages.length > 1 && !isGenerating}
           <div class="quick-nudge-pills">
-            {#each nudges as nudge}
+            {#each nudges as nudge (nudge.id)}
               <button
                 class="nudge-pill-btn font-mono text-xxs"
                 onclick={() => runNudge(nudge.prompt)}

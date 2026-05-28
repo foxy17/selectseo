@@ -3,17 +3,11 @@
   import { scoreBand } from '$lib/scoreUtils';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
 
-  let { 
-    auditResults, 
-    isValidatingLinks, 
-    checkedLinksCount, 
-    totalLinksCount, 
-    jumpToSection 
-  }: { 
-    auditResults: AuditResults; 
-    isValidatingLinks: boolean; 
-    checkedLinksCount: number; 
-    totalLinksCount: number; 
+  let {
+    auditResults,
+    jumpToSection
+  }: {
+    auditResults: AuditResults;
     jumpToSection: (tabName: string, selector?: string) => void;
   } = $props();
 
@@ -287,7 +281,7 @@
   
   <!-- Priority Issue cards list -->
   <div class="issues-list">
-    {#each sortedIssues as issue}
+    {#each sortedIssues as issue (issue.id)}
       <div 
         class="issue-card card-dark clickable" 
         onclick={() => jumpToSection(issue.tab, issue.selector)}

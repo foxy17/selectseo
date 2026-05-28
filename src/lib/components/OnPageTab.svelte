@@ -225,7 +225,7 @@
       <div class="heading-warnings-box mt-2">
         <h4 class="title-sm text-warning">Hierarchy Recommendations</h4>
         <ul>
-          {#each headingWarnings as warning}
+          {#each headingWarnings as warning, i (i)}
             <li class="warning-li">{warning}</li>
           {/each}
         </ul>
@@ -235,7 +235,7 @@
     <div class="headings-tree mt-2">
       <!-- H1 Section (special missing-state handling) -->
       {#if auditResults.onPage.headings.h1.length > 0}
-        {#each auditResults.onPage.headings.h1 as h1}
+        {#each auditResults.onPage.headings.h1 as h1, i (i)}
           <div class="tree-node depth-1">
             <span class="tag-badge h1-badge">H1</span>
             <span class="node-text">{h1}</span>
@@ -250,8 +250,8 @@
       {/if}
 
       <!-- H2..H6 Sections -->
-      {#each headingLevels as { level, items }}
-        {#each items as text}
+      {#each headingLevels as { level, items } (level)}
+        {#each items as text, i (i)}
           <div class="tree-node depth-{level}">
             <span class="tag-badge h{level}-badge">H{level}</span>
             <span class="node-text">{text}</span>
@@ -355,7 +355,7 @@
       </div>
     {:else}
       <div class="schema-cards-container mt-2">
-        {#each schemaItems as schema}
+        {#each schemaItems as schema, i (i)}
           <Collapsible cardClass="schema-collapsible-card" headerClass="schema-header-btn" bodyClass="schema-json-body font-mono">
             {#snippet header()}
               <div class="schema-title-wrap">

@@ -314,11 +314,8 @@
         <!-- TAB CONTENT: OVERVIEW -->
         {#if activeTab === 'overview'}
           <div class="tab-content" id="overview-content">
-            <DashboardTab 
-              {auditResults} 
-              {isValidatingLinks} 
-              {checkedLinksCount} 
-              {totalLinksCount} 
+            <DashboardTab
+              {auditResults}
               jumpToSection={jumpToSection}
             />
           </div>
