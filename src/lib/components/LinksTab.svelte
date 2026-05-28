@@ -58,6 +58,12 @@
   const redPct = $derived(total > 0 ? (redirects / total) * 100 : 0);
   const brkPct = $derived(total > 0 ? (broken / total) * 100 : 0);
 
+  // aria-sort value for a header reflecting current sort state
+  function ariaSortFor(col: typeof sortColumn): 'ascending' | 'descending' | 'none' {
+    if (sortColumn !== col || sortDirection === 'none') return 'none';
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  }
+
   // Sorting columns
   function handleSort(col: typeof sortColumn) {
     if (sortColumn === col) {
@@ -276,23 +282,35 @@
     <table class="data-table links-data-table">
       <thead>
         <tr class="font-mono">
-          <th class="clickable-header" onclick={() => handleSort('text')}>
-            Anchor Text {sortColumn === 'text' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+          <th aria-sort={ariaSortFor('text')}>
+            <button type="button" class="clickable-header" onclick={() => handleSort('text')}>
+              Anchor Text {sortColumn === 'text' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
           </th>
-          <th class="clickable-header" onclick={() => handleSort('href')}>
-            Destination URL {sortColumn === 'href' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+          <th aria-sort={ariaSortFor('href')}>
+            <button type="button" class="clickable-header" onclick={() => handleSort('href')}>
+              Destination URL {sortColumn === 'href' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
           </th>
-          <th class="clickable-header" onclick={() => handleSort('type')}>
-            Scope {sortColumn === 'type' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+          <th aria-sort={ariaSortFor('type')}>
+            <button type="button" class="clickable-header" onclick={() => handleSort('type')}>
+              Scope {sortColumn === 'type' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
           </th>
-          <th class="clickable-header" onclick={() => handleSort('secure')}>
-            Security {sortColumn === 'secure' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+          <th aria-sort={ariaSortFor('secure')}>
+            <button type="button" class="clickable-header" onclick={() => handleSort('secure')}>
+              Security {sortColumn === 'secure' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
           </th>
-          <th class="clickable-header" onclick={() => handleSort('status')}>
-            HTTP Status {sortColumn === 'status' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+          <th aria-sort={ariaSortFor('status')}>
+            <button type="button" class="clickable-header" onclick={() => handleSort('status')}>
+              HTTP Status {sortColumn === 'status' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
           </th>
-          <th class="clickable-header" onclick={() => handleSort('responseTime')}>
-            Speed {sortColumn === 'responseTime' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+          <th aria-sort={ariaSortFor('responseTime')}>
+            <button type="button" class="clickable-header" onclick={() => handleSort('responseTime')}>
+              Speed {sortColumn === 'responseTime' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+            </button>
           </th>
         </tr>
       </thead>
@@ -303,7 +321,20 @@
           </tr>
         {:else}
           {#each filteredLinks as link (link.id)}
-            <tr class="link-row" onclick={() => toggleRow(link.id)} class:row-expanded={expandedRow === link.id}>
+            <tr
+              class="link-row"
+              role="button"
+              tabindex="0"
+              aria-expanded={expandedRow === link.id}
+              onclick={() => toggleRow(link.id)}
+              onkeydown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleRow(link.id);
+                }
+              }}
+              class:row-expanded={expandedRow === link.id}
+            >
               <td class="anchor-text-cell">{link.text || '[Empty anchor]'}</td>
               <td class="monotext url-cell select-all">{link.href}</td>
               <td>
@@ -612,15 +643,32 @@
 
   /* .ml-2 is provided globally in index.css (same token value). */
 
-  /* Sort headers */
+  /* Sort headers — the label is a native <button> for keyboard access,
+     styled to look like the surrounding header text (no chrome). */
   .clickable-header {
     cursor: pointer;
     user-select: none;
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    letter-spacing: inherit;
   }
 
   .clickable-header:hover {
     color: var(--color-primary);
-    background-color: rgba(255, 255, 255, 0.02);
+  }
+
+  .clickable-header:focus-visible {
+    outline: none;
+    color: var(--color-primary);
+    box-shadow: inset 0 0 0 1px var(--color-primary);
+    border-radius: var(--rounded-xs);
   }
 
   .table-container {
@@ -685,6 +733,12 @@
 
   .link-row:hover {
     background-color: rgb(var(--color-primary-rgb) / 0.03) !important;
+  }
+
+  .link-row:focus-visible {
+    outline: none;
+    background-color: rgb(var(--color-primary-rgb) / 0.05) !important;
+    box-shadow: inset 0 0 0 1px var(--color-primary);
   }
 
   .row-expanded {

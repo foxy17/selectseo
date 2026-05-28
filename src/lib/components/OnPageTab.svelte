@@ -12,6 +12,11 @@
   // Active social preview tab
   let socialMode = $state<'facebook' | 'twitter'>('facebook');
 
+  // Track broken social-preview images so we can fall back to the
+  // "missing image" placeholder instead of showing a broken-image icon.
+  let ogImageFailed = $state(false);
+  let twitterImageFailed = $state(false);
+
   // Heading levels for the outline tree (H2..H6; H1 has a missing-state special case).
   const headingLevels = $derived([
     { level: 2, items: auditResults.onPage.headings.h2 },
@@ -155,8 +160,14 @@
       {#if socialMode === 'facebook'}
         <div class="facebook-box">
           <div class="fb-image-placeholder">
-            {#if auditResults.onPage.openGraph.image}
-              <img src={auditResults.onPage.openGraph.image} alt="OG representation" class="social-img" />
+            {#if auditResults.onPage.openGraph.image && !ogImageFailed}
+              <img
+                src={auditResults.onPage.openGraph.image}
+                alt="OG representation"
+                class="social-img"
+                loading="lazy"
+                onerror={() => (ogImageFailed = true)}
+              />
             {:else}
               <span class="placeholder-text">Missing og:image tag</span>
             {/if}
@@ -170,8 +181,14 @@
       {:else}
         <div class="twitter-box">
           <div class="tw-image-placeholder">
-            {#if auditResults.onPage.twitterCard.image || auditResults.onPage.openGraph.image}
-              <img src={auditResults.onPage.twitterCard.image || auditResults.onPage.openGraph.image} alt="Twitter representation" class="social-img" />
+            {#if (auditResults.onPage.twitterCard.image || auditResults.onPage.openGraph.image) && !twitterImageFailed}
+              <img
+                src={auditResults.onPage.twitterCard.image || auditResults.onPage.openGraph.image}
+                alt="Twitter representation"
+                class="social-img"
+                loading="lazy"
+                onerror={() => (twitterImageFailed = true)}
+              />
             {:else}
               <span class="placeholder-text">Missing twitter:image / og:image tag</span>
             {/if}

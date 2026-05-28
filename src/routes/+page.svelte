@@ -56,10 +56,6 @@
     crawlHistory = removeHistoryItem(url);
   }
 
-  function loadCrawlFromHistory(item: CrawlHistoryItem) {
-    goto(`/crawl-detail/${item.url}`);
-  }
-
   function log(message: string) {
     const timestamp = new Date().toLocaleTimeString();
     scanLogs = [...scanLogs, `[${timestamp}] ${message}`];
@@ -198,25 +194,25 @@
       {:else}
         <!-- History Grid List -->
         <div class="history-grid">
-          {#each crawlHistory as item}
-            <div class="history-item-card card-dark" role="button" tabindex="0" onclick={() => loadCrawlFromHistory(item)} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && loadCrawlFromHistory(item)}>
-              <div class="card-left">
-                <div class="score-badge" class:score-green={item.score >= 90} class:score-orange={item.score >= 70 && item.score < 90} class:score-red={item.score < 70}>
-                  <span class="score-num">{item.score}</span>
-                  <span class="score-grade">{item.grade}</span>
+          {#each crawlHistory as item (item.url)}
+            <div class="history-item-card card-dark">
+              <a class="history-item-link" href="/crawl-detail/{item.url}">
+                <div class="card-left">
+                  <div class="score-badge" class:score-green={item.score >= 90} class:score-orange={item.score >= 70 && item.score < 90} class:score-red={item.score < 70}>
+                    <span class="score-num">{item.score}</span>
+                    <span class="score-grade">{item.grade}</span>
+                  </div>
+                  <div class="item-meta">
+                    <h3 class="item-url font-mono">{item.url}</h3>
+                    <span class="item-time text-muted">Audited: {new Date(item.timestamp).toLocaleString()}</span>
+                  </div>
                 </div>
-                <div class="item-meta">
-                  <h3 class="item-url font-mono">{item.url}</h3>
-                  <span class="item-time text-muted">Audited: {new Date(item.timestamp).toLocaleString()}</span>
-                </div>
-              </div>
-              <div class="card-right">
                 <div class="stats-pills">
                   <span class="pill pill-error">{item.errorCount} Errors</span>
                   <span class="pill pill-warning">{item.warningCount} Warnings</span>
                 </div>
-                <button class="delete-history-btn" onclick={(e) => deleteHistoryItem(item.url, e)} title="Remove from history">×</button>
-              </div>
+              </a>
+              <button class="delete-history-btn" onclick={(e) => deleteHistoryItem(item.url, e)} title="Remove from history">×</button>
             </div>
           {/each}
         </div>
@@ -261,10 +257,10 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--spacing-md);
     padding: var(--spacing-md) var(--spacing-lg);
     border-radius: var(--rounded-lg);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: pointer;
   }
 
   .history-item-card:hover {
@@ -272,6 +268,24 @@
     background-color: rgba(250, 255, 105, 0.02) !important;
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  /* The whole card (minus the delete button) is one navigation anchor. */
+  .history-item-link {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-md);
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .history-item-link:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 4px;
+    border-radius: var(--rounded-md);
   }
 
   .card-left {
@@ -339,12 +353,6 @@
   .item-time {
     font-size: 12px;
     color: var(--color-muted);
-  }
-
-  .card-right {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
   }
 
   .stats-pills {
