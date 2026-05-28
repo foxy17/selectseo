@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { runSEOAudit, validateLinks, fetchPageSpeed, calculateGrade } from '$lib/seoEngine';
   import type { AuditResults, LinkItem, PageSpeedMetric } from '$lib/seoEngine';
   import { executeSQLQuery, initSqlEngine } from '$lib/sqlEngine';
@@ -19,7 +19,18 @@
 
   // Get raw target URL from params + query search
   const rawUrl = $derived(page.params.url + page.url.search + page.url.hash);
-  let currentUrl = $state('');
+
+  // Pure normalization: trim and ensure a protocol is present.
+  function normalizeUrl(u: string): string {
+    let normalized = u.trim();
+    if (!/^https?:\/\//i.test(normalized)) {
+      normalized = 'https://' + normalized;
+    }
+    return normalized;
+  }
+
+  // Derived normalized target URL (no state mutation inside effects).
+  const currentUrl = $derived(rawUrl ? normalizeUrl(rawUrl) : '');
 
   // Local state for scan & settings
   let proxyUrl = $state('https://corsproxy.io/?url=');
@@ -35,6 +46,11 @@
   let isScanning = $state(false);
   let scanLogs = $state<string[]>([]);
   let auditResults = $state<AuditResults | null>(null);
+
+  // Crawl cancellation token: identifies the latest in-flight crawl so that
+  // async callbacks from a superseded crawl can be discarded.
+  let crawlGeneration = 0;
+  let currentAbort: AbortController | null = null;
   let canvasEl = $state<HTMLCanvasElement | null>(null);
   let consoleBodyEl = $state<HTMLDivElement | null>(null);
 
@@ -324,22 +340,27 @@
     if (savedKey) apiKey = savedKey;
   });
 
-  // Reactive crawl trigger when rawUrl changes
+  // Reactive crawl trigger when the normalized target URL changes.
+  // Only `currentUrl` is tracked; the crawl itself runs untracked so that
+  // reactive reads inside checkCacheAndCrawl/runFreshScan don't re-trigger it.
+  let lastCrawledUrl = '';
   $effect(() => {
-    if (!rawUrl) return;
-    
-    let urlToScan = rawUrl.trim();
-    if (!/^https?:\/\//i.test(urlToScan)) {
-      urlToScan = 'https://' + urlToScan;
-    }
-
-    if (currentUrl !== urlToScan) {
-      currentUrl = urlToScan;
-      checkCacheAndCrawl(urlToScan);
-    }
+    const url = currentUrl;
+    if (!url) return;
+    untrack(() => {
+      if (lastCrawledUrl === url) return;
+      lastCrawledUrl = url;
+      void checkCacheAndCrawl(url);
+    });
   });
 
   async function checkCacheAndCrawl(url: string, forceRecrawl = false) {
+    // Begin a new crawl: bump generation and abort any prior in-flight work
+    // so superseded async callbacks can be discarded.
+    const myGen = ++crawlGeneration;
+    currentAbort?.abort();
+    currentAbort = new AbortController();
+
     isScanning = true;
     auditResults = null;
     scanLogs = [];
@@ -357,25 +378,28 @@
       auditResults = JSON.parse(JSON.stringify(cachedItem.results));
       runSQLQuery();
       isScanning = false;
-      
+
       // Auto query Core Web Vitals in background if they are missing
       if (auditResults && !auditResults.pageSpeedMobile && !auditResults.pageSpeedDesktop) {
-        triggerPageSpeedAudits(url);
+        triggerPageSpeedAudits(url, myGen);
       }
       return;
     }
 
     log(`Cache miss. Executing new audit crawl for target: ${url}`);
-    await runFreshScan(url);
+    await runFreshScan(url, myGen);
   }
 
   // Primary Crawling Execution
-  async function runFreshScan(urlToScan: string) {
+  async function runFreshScan(urlToScan: string, myGen: number) {
+    // checkCacheAndCrawl always creates a fresh controller before delegating here.
+    const abortSignal = currentAbort?.signal;
     try {
       // 1. Crawl & Run On-Page Audit
       const results = await runSEOAudit(urlToScan, proxyUrl, (msg) => log(msg));
+      if (myGen !== crawlGeneration) return; // superseded by a newer crawl
       auditResults = results;
-      
+
       // Auto query default SQL console values
       runSQLQuery();
       saveCrawlToHistory();
@@ -385,80 +409,100 @@
       if (totalLinksCount > 0) {
         log(`Found ${totalLinksCount} unique links to check. Starting validation...`);
         isValidatingLinks = true;
-        
+
         validateLinks(
           results.links,
           proxyUrl,
           (updatedLink) => {
+            if (myGen !== crawlGeneration) return; // discard stale link result
             if (auditResults) {
               const idx = auditResults.links.findIndex(l => l.id === updatedLink.id);
               if (idx !== -1) {
                 auditResults.links[idx] = updatedLink;
-                if (activeTab === 'sql') runSQLQuery();
               }
               checkedLinksCount = auditResults.links.filter(l => l.statusState !== 'pending' && l.statusState !== 'checking').length;
             }
           },
           () => {
+            if (myGen !== crawlGeneration) return; // crawl superseded; ignore
             isValidatingLinks = false;
             log('Link checking completed.');
             recalculateOverallScore();
             saveCrawlToHistory();
-          }
+            // Debounced SQL re-query: rebuild the in-memory DB once, after all
+            // link results are in, instead of on every per-link update.
+            if (activeTab === 'sql') runSQLQuery();
+          },
+          abortSignal
         );
       } else {
         log('No links found to validate.');
       }
 
       // 3. PageSpeed Audits (Automatically run in background)
-      triggerPageSpeedAudits(urlToScan);
+      triggerPageSpeedAudits(urlToScan, myGen);
 
       log('SEO core analysis complete.');
 
     } catch (err: any) {
+      if (myGen !== crawlGeneration) return; // superseded; suppress stale error
       log(`[ERROR] Audit aborted: ${err.message}`);
       console.error(err);
     } finally {
-      isScanning = false;
+      if (myGen === crawlGeneration) isScanning = false;
     }
   }
 
-  // PageSpeed background updates
-  async function triggerPageSpeedAudits(url: string) {
+  // PageSpeed background updates.
+  // `myGen` ties this run to a specific crawl; stale results are discarded.
+  // Defaults to the current generation for direct (manual) invocations from
+  // the PageSpeed tab.
+  async function triggerPageSpeedAudits(url: string, myGen: number = crawlGeneration) {
     isFetchingDesktopSpeed = true;
     pageSpeedDesktopError = '';
     log('Requesting Google PageSpeed Desktop report...');
     try {
       const desktopStats = await fetchPageSpeed(url, 'desktop', apiKey);
+      if (myGen !== crawlGeneration) return; // superseded; discard stale result
       if (auditResults) {
         auditResults.pageSpeedDesktop = desktopStats;
         log(`PageSpeed Desktop completed: Score ${desktopStats.score}/100`);
       }
     } catch (err: any) {
+      if (myGen !== crawlGeneration) return;
       pageSpeedDesktopError = err.message || 'Failed';
       log(`[WARN] PageSpeed Desktop audit failed: ${pageSpeedDesktopError}`);
     } finally {
-      isFetchingDesktopSpeed = false;
-      saveCrawlToHistory();
+      if (myGen === crawlGeneration) {
+        isFetchingDesktopSpeed = false;
+        saveCrawlToHistory();
+      }
     }
+
+    if (myGen !== crawlGeneration) return; // crawl superseded between phases
 
     isFetchingMobileSpeed = true;
     pageSpeedMobileError = '';
     log('Requesting Google PageSpeed Mobile report...');
     try {
       const mobileStats = await fetchPageSpeed(url, 'mobile', apiKey);
+      if (myGen !== crawlGeneration) return; // superseded; discard stale result
       if (auditResults) {
         auditResults.pageSpeedMobile = mobileStats;
         log(`PageSpeed Mobile completed: Score ${mobileStats.score}/100`);
       }
     } catch (err: any) {
+      if (myGen !== crawlGeneration) return;
       pageSpeedMobileError = err.message || 'Failed';
       log(`[WARN] PageSpeed Mobile audit failed: ${pageSpeedMobileError}`);
     } finally {
-      isFetchingMobileSpeed = false;
-      saveCrawlToHistory();
+      if (myGen === crawlGeneration) {
+        isFetchingMobileSpeed = false;
+        saveCrawlToHistory();
+      }
     }
 
+    if (myGen !== crawlGeneration) return;
     recalculateOverallScore();
     saveCrawlToHistory();
   }
