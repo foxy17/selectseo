@@ -336,7 +336,7 @@
 					<button
 						class="tab-btn"
 						class:active={activeTab === 'ai-discoverability'}
-						onclick={() => (activeTab = 'ai-discoverability')}>✨ AI Insights</button
+						onclick={() => (activeTab = 'ai-discoverability')}>✨ AIO Score</button
 					>
 					<button
 						class="tab-btn"
@@ -375,7 +375,7 @@
 				<!-- TAB CONTENT: AI DISCOVERABILITY -->
 				{#if activeTab === 'ai-discoverability'}
 					<div class="tab-content" id="ai-discoverability-content">
-						<AIDiscoverabilityTab audit={auditResults.aiDiscoverability} />
+						<AIDiscoverabilityTab audit={auditResults.aiDiscoverability} url={auditResults.url} />
 					</div>
 				{/if}
 

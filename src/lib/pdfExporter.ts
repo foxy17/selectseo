@@ -275,7 +275,7 @@ export function exportSEOReport(results: AuditResults): void {
 	doc.setFont('Helvetica', 'normal');
 	doc.setFontSize(10);
 	doc.setTextColor(80, 80, 80);
-	doc.text('AI READINESS SCORE:', margin + 6, y + 10);
+	doc.text('AIO SCORE:', margin + 6, y + 10);
 	doc.setFont('Helvetica', 'bold');
 	doc.setFontSize(14);
 	doc.setTextColor(16, 185, 129); // green
@@ -284,11 +284,14 @@ export function exportSEOReport(results: AuditResults): void {
 
 	// List AEO audits
 	const aiAudits = [
+		{ name: 'High-Value Schema Depth', audit: ai.targetSchema },
 		{ name: 'Fact-First Q&A Formatting', audit: ai.qaFormatting },
+		{ name: 'Direct-Answer / TL;DR Summary', audit: ai.directAnswer },
+		{ name: 'Author & Freshness (E-E-A-T)', audit: ai.authorDate },
 		{ name: 'Content Scannability (Lists & Tables)', audit: ai.scannability },
 		{ name: 'Semantic HTML Structure', audit: ai.semanticHtml },
-		{ name: 'High-Value Schema Depth', audit: ai.targetSchema },
-		{ name: 'AI Crawler Permissions (robots.txt)', audit: ai.robotsTxtAi }
+		{ name: 'AI Crawler Permissions (robots.txt)', audit: ai.robotsTxtAi },
+		{ name: 'llms.txt — AI Content Map', audit: ai.llmsTxt }
 	];
 
 	aiAudits.forEach((item) => {
@@ -317,6 +320,21 @@ export function exportSEOReport(results: AuditResults): void {
 		const msgLines = doc.splitTextToSize(item.audit.message, contentWidth - 40);
 		doc.text(msgLines, margin + 20, y + 4);
 		y += msgLines.length * 4.2 + 6;
+
+		// "How to fix" guidance for any check that isn't passing.
+		if (item.audit.status !== 'ok' && item.audit.recommendation) {
+			addPageIfNeeded(12);
+			doc.setFont('Helvetica', 'bold');
+			doc.setFontSize(8);
+			doc.setTextColor(202, 138, 4); // amber accent for the fix label
+			doc.text('FIX:', margin + 20, y);
+
+			doc.setFont('Helvetica', 'normal');
+			doc.setTextColor(70, 70, 70);
+			const recLines = doc.splitTextToSize(item.audit.recommendation, contentWidth - 52);
+			doc.text(recLines, margin + 32, y);
+			y += recLines.length * 4.2 + 6;
+		}
 	});
 	y += 4;
 

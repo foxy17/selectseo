@@ -64,6 +64,12 @@ export interface TwitterCardAudit {
 export interface GenericAudit {
 	status: 'ok' | 'warning' | 'error' | 'missing';
 	message: string;
+	/**
+	 * Actionable "how to fix" guidance, populated only when the check is not
+	 * passing. The AIO Score tab surfaces this beneath the status message and in
+	 * the prioritized fix list.
+	 */
+	recommendation?: string;
 }
 
 export interface AIDiscoverabilityAudit {
@@ -74,6 +80,9 @@ export interface AIDiscoverabilityAudit {
 	semanticHtml: GenericAudit;
 	targetSchema: GenericAudit;
 	robotsTxtAi: GenericAudit;
+	directAnswer: GenericAudit;
+	authorDate: GenericAudit;
+	llmsTxt: GenericAudit;
 }
 
 export interface ContentMetrics {
@@ -187,14 +196,19 @@ const DESCRIPTION_LENGTH = { min: 110, max: 160 } as const;
 
 /**
  * Points subtracted from the AI-discoverability (AEO) score for each failing
- * heuristic. Identical to the prior inline literals — naming only, no tuning.
+ * heuristic. Weights sum to 100 and double as the "impact" used to order the
+ * Priority Fixes list in the AIO Score tab, so this is the single source of
+ * truth — the component imports it rather than re-declaring weights.
  */
-const AEO_PENALTIES = {
-	qaFormatting: 20,
-	scannability: 20,
-	semanticHtml: 15,
-	targetSchema: 25,
-	robotsTxtAi: 20
+export const AEO_PENALTIES = {
+	targetSchema: 18,
+	robotsTxtAi: 14,
+	qaFormatting: 14,
+	directAnswer: 12,
+	authorDate: 12,
+	scannability: 12,
+	semanticHtml: 10,
+	llmsTxt: 8
 } as const;
 
 /**
@@ -464,7 +478,9 @@ export async function runSEOAudit(
 					robotsTxtAi = {
 						status: 'warning',
 						message:
-							'robots.txt appears to block one or more AI crawlers (e.g. GPTBot, Google-Extended, PerplexityBot). This prevents inclusion in some AI chat results.'
+							'robots.txt appears to block one or more AI crawlers (e.g. GPTBot, Google-Extended, PerplexityBot). This prevents inclusion in some AI chat results.',
+						recommendation:
+							'Open your robots.txt and remove the blocking `Disallow: /` rules for the AI user-agents you want to reach (GPTBot, OAI-SearchBot, ChatGPT-User, Google-Extended, PerplexityBot, Anthropic-AI/ClaudeBot). If you intentionally block training crawlers, at least allow the *answer* crawlers (OAI-SearchBot, PerplexityBot) so you can still be cited.'
 					};
 				}
 			}
@@ -477,7 +493,9 @@ export async function runSEOAudit(
 	} catch {
 		robotsTxtAi = {
 			status: 'warning',
-			message: 'Failed to fetch robots.txt to verify AI crawler permissions.'
+			message: 'Failed to fetch robots.txt to verify AI crawler permissions.',
+			recommendation:
+				'We could not fetch /robots.txt through the proxy. Confirm the file returns HTTP 200 and is not firewalled, then re-run the audit to verify AI crawlers are allowed.'
 		};
 	}
 
@@ -806,7 +824,9 @@ export async function runSEOAudit(
 		: {
 				status: 'warning',
 				message:
-					'No question-based headings found. AI engines prefer explicit Q&A structures (e.g. "How does X work?").'
+					'No question-based headings found. AI engines prefer explicit Q&A structures (e.g. "How does X work?").',
+				recommendation:
+					'Add explicit question-style H2/H3 headings that mirror how people ask AI (e.g. "How does X work?", "What is Y?") and answer each in the first 1–2 sentences below the heading. A short FAQ section near the end is an easy win.'
 			};
 
 	const lists = doc.querySelectorAll('ul, ol, dl').length;
@@ -820,7 +840,9 @@ export async function runSEOAudit(
 			: {
 					status: 'warning',
 					message:
-						'No lists or tables found. AI models struggle to extract facts from unstructured text.'
+						'No lists or tables found. AI models struggle to extract facts from unstructured text.',
+					recommendation:
+						'Break dense prose into bulleted/numbered lists and comparison tables. AI engines extract facts far more reliably from <ul>/<ol>/<table> than from long paragraphs — convert specs, steps, and pros/cons into structured blocks.'
 				};
 
 	const semantics = doc.querySelectorAll('article, section, main, nav, aside').length;
@@ -833,7 +855,9 @@ export async function runSEOAudit(
 			: {
 					status: 'warning',
 					message:
-						'Lacking semantic HTML5 tags (<article>, <section>, <main>). Heavy reliance on <div> makes AI parsing difficult.'
+						'Lacking semantic HTML5 tags (<article>, <section>, <main>). Heavy reliance on <div> makes AI parsing difficult.',
+					recommendation:
+						'Wrap the page in semantic HTML5 landmarks — <main> for the primary content, <article> per self-contained piece, <section> for distinct topics — instead of nested <div>s. This gives AI a clean content boundary to quote from.'
 				};
 
 	const hasTargetSchema = schemaTypes.some((t) =>
@@ -849,24 +873,112 @@ export async function runSEOAudit(
 			}
 		: {
 				status: 'warning',
-				message: 'Missing high-value AEO schemas (FAQPage, Article, Organization, etc.).'
+				message: 'Missing high-value AEO schemas (FAQPage, Article, Organization, etc.).',
+				recommendation:
+					"Add JSON-LD structured data for the page's type — FAQPage for Q&A content (cited ~3.6× more often in AI Overviews), plus Article/NewsArticle, Organization, Product, or HowTo as relevant. Validate with Google's Rich Results Test."
 			};
 
-	let aiScore = 100;
-	if (qaFormatting.status === 'warning') aiScore -= AEO_PENALTIES.qaFormatting;
-	if (scannability.status === 'warning') aiScore -= AEO_PENALTIES.scannability;
-	if (semanticHtml.status === 'warning') aiScore -= AEO_PENALTIES.semanticHtml;
-	if (targetSchema.status === 'warning') aiScore -= AEO_PENALTIES.targetSchema;
-	if (robotsTxtAi.status === 'warning') aiScore -= AEO_PENALTIES.robotsTxtAi;
+	// Direct-answer / TL;DR: generative engines lift a concise answer from the top
+	// of the page. Pass if a summary marker is present, or the lead paragraph reads
+	// like a self-contained direct answer (roughly one to three sentences).
+	const leadText = visibleText.slice(0, 800).toLowerCase();
+	const summaryMarker =
+		/\b(tl;?dr|in short|in summary|key takeaways?|bottom line|quick answer)\b/.test(leadText) ||
+		allH2H3.some((h) => /\b(tl;?dr|summary|key takeaways?)\b/i.test(h));
+	const leadParagraph =
+		Array.from(doc.querySelectorAll('main p, article p, p'))
+			.map((p) => p.textContent?.trim() || '')
+			.find((t) => t.length > 0) || '';
+	const hasLeadAnswer = leadParagraph.length >= 40 && leadParagraph.length <= 400;
+	const directAnswer: GenericAudit =
+		summaryMarker || hasLeadAnswer
+			? {
+					status: 'ok',
+					message:
+						'Page opens with a concise direct answer or summary that AI engines can lift verbatim.'
+				}
+			: {
+					status: 'warning',
+					message:
+						'No clear direct-answer or TL;DR summary near the top. The page makes AI work to find the key takeaway.',
+					recommendation:
+						'Lead with a 2–4 sentence direct answer or a "TL;DR" / "Key takeaways" block right under the H1. Generative engines quote the concise answer at the top of the page, so state the conclusion first, then expand.'
+				};
 
-	const aiDiscoverability: AIDiscoverabilityAudit = {
-		score: Math.max(0, aiScore),
-		grade: calculateGrade(Math.max(0, aiScore)),
+	// Author + freshness (E-E-A-T): AI weighs who wrote it and how current it is.
+	const schemaBlob = schemas
+		.map((s) => s.code)
+		.join(' ')
+		.toLowerCase();
+	const hasAuthor =
+		!!doc.querySelector(
+			'meta[name="author"], [rel="author"], [itemprop="author"], [class*="author"], [class*="byline"]'
+		) || schemaBlob.includes('"author"');
+	const hasDate =
+		!!doc.querySelector(
+			'time, meta[property="article:published_time"], meta[property="article:modified_time"], meta[itemprop="datePublished"], meta[itemprop="dateModified"]'
+		) ||
+		schemaBlob.includes('datepublished') ||
+		schemaBlob.includes('datemodified');
+	const authorDate: GenericAudit =
+		hasAuthor && hasDate
+			? {
+					status: 'ok',
+					message:
+						'Author attribution and a publish/update date are present — strong E-E-A-T signals.'
+				}
+			: {
+					status: 'warning',
+					message: `Missing ${!hasAuthor && !hasDate ? 'author attribution and a publish/update date' : !hasAuthor ? 'author attribution' : 'a publish/update date'}. AI engines favor content with clear authorship and freshness.`,
+					recommendation:
+						'Show a real author (byline + author schema) and visible publish/updated dates, and expose them in metadata (article:published_time, article:modified_time, JSON-LD datePublished/dateModified). Author + freshness are core E-E-A-T signals AI uses to decide whom to cite.'
+				};
+
+	// llms.txt: a site-root Markdown map that points AI crawlers at canonical content.
+	let llmsTxt: GenericAudit = {
+		status: 'warning',
+		message: 'No llms.txt found at the site root.',
+		recommendation:
+			'Publish an /llms.txt at your site root — a concise Markdown map of your most important pages plus a short site summary that points AI crawlers to your canonical content. Link the key URLs you want quoted.'
+	};
+	try {
+		const llmsBase = new URL(finalUrl);
+		const llmsUrl = `${llmsBase.protocol}//${llmsBase.host}/llms.txt`;
+		const llmsRes = await fetchWithTimeout(buildProxyFetchUrl(proxyUrl, llmsUrl), {}, 5000);
+		if (llmsRes.ok) {
+			const llmsBody = (await llmsRes.text()).trim();
+			// Guard against SPA/host 404 fallbacks that return HTTP 200 with an HTML page.
+			if (llmsBody.length > 0 && !/^\s*<(!doctype|html)/i.test(llmsBody)) {
+				llmsTxt = {
+					status: 'ok',
+					message: 'Found an llms.txt file guiding AI crawlers to your key content.'
+				};
+			}
+		}
+	} catch {
+		// Network/proxy failure — leave the default "missing" warning in place.
+	}
+
+	const aeoChecks = {
 		qaFormatting,
 		scannability,
 		semanticHtml,
 		targetSchema,
-		robotsTxtAi
+		robotsTxtAi,
+		directAnswer,
+		authorDate,
+		llmsTxt
+	};
+
+	let aiScore = 100;
+	for (const [key, audit] of Object.entries(aeoChecks)) {
+		if (audit.status !== 'ok') aiScore -= AEO_PENALTIES[key as keyof typeof AEO_PENALTIES];
+	}
+
+	const aiDiscoverability: AIDiscoverabilityAudit = {
+		score: Math.max(0, aiScore),
+		grade: calculateGrade(Math.max(0, aiScore)),
+		...aeoChecks
 	};
 
 	const onPageResults: OnPageSEOResults = {

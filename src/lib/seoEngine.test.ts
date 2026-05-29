@@ -72,7 +72,10 @@ function makeAudit(overrides: Partial<AuditResults> = {}): AuditResults {
 			scannability: ok(),
 			semanticHtml: ok(),
 			targetSchema: ok(),
-			robotsTxtAi: ok()
+			robotsTxtAi: ok(),
+			directAnswer: ok(),
+			authorDate: ok(),
+			llmsTxt: ok()
 		},
 		score: 100,
 		grade: 'A+',
