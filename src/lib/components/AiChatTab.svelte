@@ -3,6 +3,7 @@
 	import type { AuditResults } from '$lib/seoEngine';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
+	import ProgressBar from '$lib/components/ProgressBar.svelte';
 
 	let { auditResults }: { auditResults: AuditResults } = $props();
 
@@ -11,6 +12,19 @@
 	>('unknown');
 	let isChrome = $state(false);
 	let overrideBrowserCheck = $state(false);
+	// Model download progress (0–100) while the on-device model is downloading; null otherwise.
+	let downloadProgress = $state<number | null>(null);
+
+	// Wires Chrome's `downloadprogress` events into `downloadProgress`. Per the Prompt API
+	// spec `e.loaded` is already a 0–1 fraction (no `total`); older builds report bytes with
+	// a `total`, so we handle both.
+	function attachDownloadMonitor(m: EventTarget) {
+		m.addEventListener('downloadprogress', (ev: Event) => {
+			const e = ev as ProgressEvent;
+			const frac = e.total ? e.loaded / e.total : e.loaded;
+			downloadProgress = Math.min(100, Math.max(0, Math.round((frac || 0) * 100)));
+		});
+	}
 
 	type Message = { role: 'user' | 'assistant'; text: string };
 	let messages = $state<Message[]>([]);
@@ -126,8 +140,11 @@ Word Count: ${auditResults.onPage.contentMetrics.wordCount}
 Your goal is to answer the user's questions about this SEO audit, provide actionable advice, or generate optimized content (like rewriting titles/descriptions). Format your responses in markdown.`;
 
 			session = await lm.create({
-				systemPrompt: systemPrompt
+				systemPrompt: systemPrompt,
+				// Surface progress if the model still needs to download on first session create.
+				monitor: attachDownloadMonitor
 			});
+			downloadProgress = null;
 
 			messages.push({
 				role: 'assistant',
@@ -250,12 +267,16 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 		if (lm) {
 			try {
 				aiStatus = 'downloading';
-				await lm.create();
-				alert('Download triggered in the background. Check chrome://on-device-internals');
-				checkAiAvailability();
+				downloadProgress = 0;
+				// Pass a monitor so we can surface real download progress instead of a blocking alert.
+				await lm.create({ monitor: attachDownloadMonitor });
+				downloadProgress = 100;
+				await checkAiAvailability();
 			} catch (e) {
 				console.error(e);
 				aiStatus = 'downloadable';
+			} finally {
+				downloadProgress = null;
 			}
 		}
 	}
@@ -515,9 +536,20 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 					<div class="step-num font-mono">05</div>
 					<div class="step-content">
 						<p class="font-mono text-sm text-body-strong">Initialize / Download Model</p>
-						{#if aiStatus === 'downloadable'}
+						{#if aiStatus === 'downloading'}
 							<span class="text-xs text-muted font-sans"
-								>The model is ready to download! Click below to start the background download:</span
+								>Downloading the on-device model. This can take a few minutes on the first run —
+								keep this tab open.</span
+							>
+							<div class="download-progress mt-2">
+								<ProgressBar value={downloadProgress ?? 0} color="primary" height="8px" border />
+								<span class="download-pct font-mono text-xs text-body-strong">
+									{downloadProgress ?? 0}%
+								</span>
+							</div>
+						{:else if aiStatus === 'downloadable'}
+							<span class="text-xs text-muted font-sans"
+								>The model is ready to download! Click below to start the download:</span
 							>
 							<div class="mt-2">
 								<button class="btn btn-primary btn-sm" onclick={triggerDownload}
@@ -720,6 +752,21 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+	}
+
+	.download-progress {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+	}
+
+	.download-progress :global(.pb-track) {
+		flex: 1;
+	}
+
+	.download-pct {
+		min-width: 3ch;
+		text-align: right;
 	}
 
 	.code-link {
