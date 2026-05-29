@@ -1,6 +1,49 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import SEO from '$lib/components/SEO.svelte';
 	import InfoPageLayout from '$lib/components/InfoPageLayout.svelte';
+	import ProgressBar from '$lib/components/ProgressBar.svelte';
+	import { copyToClipboard } from '$lib/exportUtils';
+	import { getAiAvailability, downloadModel, type AiStatus } from '$lib/chromeAi';
+
+	// Which copyable setup snippet was most recently copied, for transient "Copied" feedback.
+	// chrome:// URLs can't be opened from a web page, so each setup link is copy-to-paste.
+	let copiedKey = $state<string | null>(null);
+	let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function copySnippet(key: string, value: string) {
+		const ok = await copyToClipboard(value);
+		if (!ok) return;
+		copiedKey = key;
+		if (copyResetTimer) clearTimeout(copyResetTimer);
+		copyResetTimer = setTimeout(() => {
+			copiedKey = null;
+		}, 1500);
+	}
+
+	// On-device model download state, driven directly from this guide so users
+	// don't have to open DevTools to trigger the download.
+	let aiStatus = $state<AiStatus>('unknown');
+	let downloadProgress = $state<number | null>(null);
+
+	async function triggerDownload() {
+		try {
+			aiStatus = 'downloading';
+			downloadProgress = 0;
+			await downloadModel((pct) => (downloadProgress = pct));
+			downloadProgress = 100;
+			aiStatus = await getAiAvailability();
+		} catch (e) {
+			console.error(e);
+			aiStatus = await getAiAvailability();
+		} finally {
+			downloadProgress = null;
+		}
+	}
+
+	onMount(async () => {
+		aiStatus = await getAiAvailability();
+	});
 
 	const howToSchema = [
 		{
@@ -62,6 +105,20 @@
 		}
 	];
 </script>
+
+{#snippet copyField(key: string, value: string)}
+	<div class="copy-field">
+		<code class="copy-code">{value}</code>
+		<button
+			class="copy-btn"
+			class:copied={copiedKey === key}
+			onclick={() => copySnippet(key, value)}
+			title="Copy to clipboard"
+		>
+			{copiedKey === key ? '✓ Copied' : 'Copy'}
+		</button>
+	</div>
+{/snippet}
 
 <SEO
 	title="How To Use - SelectSEO Auditor"
@@ -154,20 +211,23 @@
 
 			<div class="ai-config-steps card-dark font-mono text-xs">
 				<h3 class="title-sm text-warning mb-2">// LOCAL_LLM_ENABLE_PROCEDURE</h3>
+				<p class="paste-hint">
+					Chrome blocks <code class="inline-code">chrome://</code> links, so each one below has a
+					<strong class="text-primary">Copy</strong> button — paste it into the address bar of a new
+					tab.
+				</p>
 				<ol class="setup-list">
 					<li>
-						Open a new Chrome tab and navigate to <code class="code-link">chrome://flags</code>.
-					</li>
-					<li>
-						Find <strong class="text-primary">#prompt-api-for-gemini-nano</strong> and set it to
+						Enable the Prompt API: copy this link, open it in a new tab, and set the flag to
 						<strong>Enabled</strong>.
+						{@render copyField('prompt-flag', 'chrome://flags/#prompt-api-for-gemini-nano')}
 					</li>
 					<li>
-						Find <strong class="text-primary">#optimization-guide-on-device-model</strong> and set
-						it to <strong>Enabled BypassPrefRequirement</strong>.
+						Enable the on-device model: copy this link, open it, and set the flag to
+						<strong>Enabled BypassPrefRequirement</strong>.
+						{@render copyField('model-flag', 'chrome://flags/#optimization-guide-on-device-model')}
 						<span class="text-warning"
-							>*Note: 'BypassPrefRequirement' is crucial to prevent silent hardware capability
-							rejects.</span
+							>*'BypassPrefRequirement' is crucial to prevent silent hardware capability rejects.</span
 						>
 					</li>
 					<li>
@@ -175,16 +235,43 @@
 						updates).
 					</li>
 					<li>
-						<strong>Trigger the download:</strong> Open DevTools console on this page and execute
-						<code class="code-link"
-							>await (window.ai?.languageModel || window.LanguageModel)?.create()</code
-						>. This call forces Chrome to dynamically register the component and begin downloading.
+						<strong>Download the model:</strong> after relaunching, reload this page and click the button
+						below. It registers Chrome's on-device component and begins the download — keep this tab open
+						while it runs.
+						<div class="download-action">
+							{#if aiStatus === 'downloading'}
+								<div class="download-progress">
+									<ProgressBar
+										value={downloadProgress ?? 0}
+										indeterminate={!downloadProgress}
+										color="primary"
+										height="8px"
+										border
+									/>
+									<span class="download-pct">{downloadProgress ? `${downloadProgress}%` : '…'}</span>
+								</div>
+								<span class="downloading-note text-xs text-muted"
+									>Downloading… this can take several minutes on first run. Keep this tab open.</span
+								>
+							{:else if aiStatus === 'available'}
+								<span class="model-ready text-success">✓ Model downloaded and ready.</span>
+							{:else if aiStatus === 'unsupported'}
+								<span class="text-warning"
+									>Prompt API not detected yet — finish steps 1–3, relaunch Chrome, then reload this
+									page.</span
+								>
+							{:else}
+								<button class="btn btn-primary btn-download" onclick={triggerDownload}
+									>⬇ Download Model</button
+								>
+							{/if}
+						</div>
 					</li>
 					<li>
-						Navigate to <code class="code-link">chrome://on-device-internals</code> and click the
-						<strong>"Model Status"</strong>
-						tab. The status should change from <em>"No On-device Feature Used"</em> to
-						<em>"Downloading"</em>.
+						Check progress: copy this link and open it, then click the
+						<strong>"Model Status"</strong> tab. The status should change from
+						<em>"No On-device Feature Used"</em> to <em>"Downloading"</em>.
+						{@render copyField('internals', 'chrome://on-device-internals')}
 					</li>
 					<li>
 						Once download completes, scan any target site, switch to the dedicated <strong
@@ -295,11 +382,110 @@
 		margin-top: var(--spacing-xs);
 	}
 
-	.code-link {
+	.paste-hint {
+		font-family: var(--font-family-sans);
+		line-height: 1.5;
+		color: var(--color-muted);
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.inline-code {
+		font-family: var(--font-family-mono);
 		background-color: rgba(255, 255, 255, 0.05);
-		color: var(--color-on-dark);
-		padding: 1px 6px;
+		border: 1px solid rgba(255, 255, 255, 0.05);
 		border-radius: var(--rounded-xs);
+		padding: 1px 5px;
+		color: var(--color-body-strong);
+	}
+
+	/* Copy-to-paste field: a monospace snippet with a one-click Copy button. */
+	.copy-field {
+		display: flex;
+		align-items: stretch;
+		gap: var(--spacing-xs);
+		margin: 6px 0;
+		width: 100%;
+	}
+
+	.copy-code {
+		flex: 1;
+		min-width: 0;
+		font-family: var(--font-family-mono);
+		color: var(--color-body-strong);
+		background-color: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: var(--rounded-xs);
+		padding: 7px 10px;
+		overflow-x: auto;
+		white-space: nowrap;
+		user-select: all;
+	}
+
+	.copy-btn {
+		flex-shrink: 0;
+		padding: 0 14px;
+		font-family: var(--font-family-mono);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--color-primary);
+		background-color: rgb(var(--color-primary-rgb) / 0.08);
+		border: 1px solid rgb(var(--color-primary-rgb) / 0.25);
+		border-radius: var(--rounded-xs);
+		cursor: pointer;
+		transition: all 0.15s ease;
+		white-space: nowrap;
+	}
+
+	.copy-btn:hover {
+		background-color: var(--color-primary);
+		color: var(--color-on-primary);
+		border-color: var(--color-primary);
+	}
+
+	.copy-btn.copied {
+		color: var(--color-success);
+		background-color: rgb(var(--color-success-rgb) / 0.1);
+		border-color: rgb(var(--color-success-rgb) / 0.35);
+	}
+
+	/* In-guide model download control */
+	.download-action {
+		margin-top: var(--spacing-sm);
+	}
+
+	.btn-download {
+		height: 36px;
+		padding: 0 var(--spacing-md);
+		font-size: 13px;
+	}
+
+	.download-progress {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+	}
+
+	.download-progress :global(.pb-track) {
+		flex: 1;
+	}
+
+	.download-pct {
+		min-width: 3ch;
+		text-align: right;
+		font-family: var(--font-family-mono);
+		color: var(--color-body-strong);
+	}
+
+	.model-ready {
+		font-weight: 600;
+	}
+
+	.downloading-note {
+		display: block;
+		margin-top: var(--spacing-xs);
+		font-family: var(--font-family-sans);
+		line-height: 1.5;
 	}
 
 	@media (max-width: 768px) {

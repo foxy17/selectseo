@@ -4,25 +4,41 @@
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
 	import ProgressBar from '$lib/components/ProgressBar.svelte';
+	import { copyToClipboard } from '$lib/exportUtils';
+	import {
+		getLanguageModel,
+		downloadProgressPercent,
+		getAiAvailability,
+		type AiStatus
+	} from '$lib/chromeAi';
 
 	let { auditResults }: { auditResults: AuditResults } = $props();
 
-	let aiStatus = $state<
-		'unknown' | 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'unsupported'
-	>('unknown');
+	let aiStatus = $state<AiStatus>('unknown');
 	let isChrome = $state(false);
 	let overrideBrowserCheck = $state(false);
 	// Model download progress (0–100) while the on-device model is downloading; null otherwise.
 	let downloadProgress = $state<number | null>(null);
 
-	// Wires Chrome's `downloadprogress` events into `downloadProgress`. Per the Prompt API
-	// spec `e.loaded` is already a 0–1 fraction (no `total`); older builds report bytes with
-	// a `total`, so we handle both.
+	// Which copyable setup snippet was most recently copied, for transient "Copied" feedback.
+	// chrome:// URLs can't be opened from a web page, so each setup link is copy-to-paste.
+	let copiedKey = $state<string | null>(null);
+	let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function copySnippet(key: string, value: string) {
+		const ok = await copyToClipboard(value);
+		if (!ok) return;
+		copiedKey = key;
+		if (copyResetTimer) clearTimeout(copyResetTimer);
+		copyResetTimer = setTimeout(() => {
+			copiedKey = null;
+		}, 1500);
+	}
+
+	// Wires Chrome's `downloadprogress` events into `downloadProgress` (see chromeAi.ts).
 	function attachDownloadMonitor(m: EventTarget) {
 		m.addEventListener('downloadprogress', (ev: Event) => {
-			const e = ev as ProgressEvent;
-			const frac = e.total ? e.loaded / e.total : e.loaded;
-			downloadProgress = Math.min(100, Math.max(0, Math.round((frac || 0) * 100)));
+			downloadProgress = downloadProgressPercent(ev as ProgressEvent);
 		});
 	}
 
@@ -105,26 +121,11 @@ Suggest actionable improvements to structure the content layout and headings to 
 	}
 
 	async function checkAiAvailability() {
-		if (typeof window === 'undefined') return;
-		const win = window as any;
-		const lm = (win.ai && win.ai.languageModel) || win.LanguageModel;
-		if (!lm) {
-			aiStatus = 'unsupported';
-			return;
-		}
-		try {
-			const status = await lm.availability();
-			aiStatus = status;
-		} catch (e) {
-			console.error('Failed to get Chrome AI availability:', e);
-			aiStatus = 'unsupported';
-		}
+		aiStatus = await getAiAvailability();
 	}
 
 	async function initializeSession() {
-		if (typeof window === 'undefined') return;
-		const win = window as any;
-		const lm = (win.ai && win.ai.languageModel) || win.LanguageModel;
+		const lm = getLanguageModel();
 		if (!lm) return;
 
 		try {
@@ -261,9 +262,7 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 
 	// Helper trigger function for when status is downloadable
 	async function triggerDownload() {
-		if (typeof window === 'undefined') return;
-		const win = window as any;
-		const lm = (win.ai && win.ai.languageModel) || win.LanguageModel;
+		const lm = getLanguageModel();
 		if (lm) {
 			try {
 				aiStatus = 'downloading';
@@ -281,6 +280,20 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 		}
 	}
 </script>
+
+{#snippet copyField(key: string, value: string)}
+	<div class="copy-field">
+		<code class="copy-code">{value}</code>
+		<button
+			class="copy-btn font-mono"
+			class:copied={copiedKey === key}
+			onclick={() => copySnippet(key, value)}
+			title="Copy to clipboard"
+		>
+			{copiedKey === key ? '✓ Copied' : 'Copy'}
+		</button>
+	</div>
+{/snippet}
 
 <div class="ai-chat-tab">
 	<div class="chat-header card-dark">
@@ -488,63 +501,70 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 				or not yet downloaded. Follow these steps to configure your browser:
 			</p>
 
+			<p class="paste-hint text-xs text-muted">
+				Chrome blocks <code class="inline-code">chrome://</code> links for security, so each link
+				below has a <strong class="text-primary">Copy</strong> button — paste it into the address bar
+				of a new tab.
+			</p>
+
 			<div class="steps-container mt-4">
 				<div class="step-card">
 					<div class="step-num font-mono">01</div>
 					<div class="step-content">
-						<p class="font-mono text-sm text-body-strong">Open Experimental Flags</p>
-						<span class="text-xs text-muted">Copy and paste this link in a new tab:</span>
-						<code class="code-link select-all">chrome://flags</code>
+						<p class="font-mono text-sm text-body-strong">Enable the Gemini Nano Prompt API</p>
+						<span class="text-xs text-muted font-sans"
+							>Copy this link, open it in a new tab, then set the flag to
+							<strong class="text-primary">Enabled</strong>:</span
+						>
+						{@render copyField('prompt-flag', 'chrome://flags/#prompt-api-for-gemini-nano')}
 					</div>
 				</div>
 
 				<div class="step-card">
 					<div class="step-num font-mono">02</div>
 					<div class="step-content">
-						<p class="font-mono text-sm text-body-strong">Enable Gemini Nano Prompt API</p>
-						<span class="text-xs text-muted"
-							>Find <strong class="text-primary">#prompt-api-for-gemini-nano</strong> and set it to:</span
+						<p class="font-mono text-sm text-body-strong">Enable the On-Device Model</p>
+						<span class="text-xs text-muted font-sans"
+							>Copy this link, open it in a new tab, then set the flag to
+							<strong class="text-primary">Enabled BypassPrefRequirement</strong>:</span
 						>
-						<code class="code-value font-mono">Enabled</code>
+						{@render copyField(
+							'model-flag',
+							'chrome://flags/#optimization-guide-on-device-model'
+						)}
 					</div>
 				</div>
 
 				<div class="step-card">
 					<div class="step-num font-mono">03</div>
 					<div class="step-content">
-						<p class="font-mono text-sm text-body-strong">Enable On-Device Model Guide</p>
-						<span class="text-xs text-muted"
-							>Find <strong class="text-primary">#optimization-guide-on-device-model</strong> and set
-							it to:</span
-						>
-						<code class="code-value font-mono">Enabled BypassPrefRequirement</code>
-					</div>
-				</div>
-
-				<div class="step-card">
-					<div class="step-num font-mono">04</div>
-					<div class="step-content">
 						<p class="font-mono text-sm text-body-strong">Relaunch Chrome</p>
-						<span class="text-xs text-muted"
+						<span class="text-xs text-muted font-sans"
 							>Click the <strong class="text-warning">Relaunch</strong> button at the bottom of the flags
-							page to apply changes.</span
+							page to apply both changes.</span
 						>
 					</div>
 				</div>
 
 				<div class="step-card font-mono">
-					<div class="step-num font-mono">05</div>
+					<div class="step-num font-mono">04</div>
 					<div class="step-content">
-						<p class="font-mono text-sm text-body-strong">Initialize / Download Model</p>
+						<p class="font-mono text-sm text-body-strong">Download the Model</p>
 						{#if aiStatus === 'downloading'}
 							<span class="text-xs text-muted font-sans"
 								>Downloading the on-device model. This can take a few minutes on the first run —
 								keep this tab open.</span
 							>
 							<div class="download-progress mt-2">
-								<ProgressBar value={downloadProgress ?? 0} color="primary" height="8px" border />
+								<ProgressBar
+									value={downloadProgress ?? 0}
+									indeterminate={!downloadProgress}
+									color="primary"
+									height="8px"
+									border
+								/>
 								<span class="download-pct font-mono text-xs text-body-strong">
-									{downloadProgress ?? 0}%
+									{downloadProgress ? `${downloadProgress}%` : '…'}
 								</span>
 							</div>
 						{:else if aiStatus === 'downloadable'}
@@ -553,17 +573,16 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 							>
 							<div class="mt-2">
 								<button class="btn btn-primary btn-sm" onclick={triggerDownload}
-									>Download Model</button
+									>⬇ Download Model</button
 								>
 							</div>
 						{:else}
 							<span class="text-xs text-muted font-sans"
-								>If the Prompt API is still unavailable after relaunch, open <code
-									class="code-link font-mono">chrome://components</code
-								>
-								and check for updates under <strong>Optimization Guide On Device Model</strong>.
-								Then, refresh this page.</span
+								>If the Prompt API is still unavailable after relaunch, open Chrome's components page,
+								check for updates under <strong>Optimization Guide On Device Model</strong>, then
+								refresh this page:</span
 							>
+							{@render copyField('components', 'chrome://components')}
 						{/if}
 					</div>
 				</div>
@@ -769,32 +788,71 @@ Your goal is to answer the user's questions about this SEO audit, provide action
 		text-align: right;
 	}
 
-	.code-link {
+	.paste-hint {
+		margin-top: var(--spacing-sm);
+		line-height: 1.5;
+	}
+
+	.inline-code {
+		font-family: var(--font-family-mono);
 		background-color: rgba(255, 255, 255, 0.05);
-		padding: 2px 6px;
-		border-radius: 4px;
-		display: inline-block;
-		width: fit-content;
-		margin-top: 4px;
-		font-size: 11px;
 		border: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.code-value {
-		color: var(--color-primary);
-		background-color: rgb(var(--color-primary-rgb) / 0.05);
-		padding: 2px 6px;
 		border-radius: 4px;
-		border: 1px solid rgb(var(--color-primary-rgb) / 0.1);
-		display: inline-block;
-		width: fit-content;
-		margin-top: 4px;
+		padding: 1px 5px;
 		font-size: 11px;
+		color: var(--color-body-strong);
 	}
 
-	.select-all {
+	/* Copy-to-paste field: a monospace snippet with a one-click Copy button. */
+	.copy-field {
+		display: flex;
+		align-items: stretch;
+		gap: var(--spacing-xs);
+		margin-top: 6px;
+		width: 100%;
+	}
+
+	.copy-code {
+		flex: 1;
+		min-width: 0;
+		font-family: var(--font-family-mono);
+		font-size: 11px;
+		color: var(--color-body-strong);
+		background-color: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 4px;
+		padding: 7px 10px;
+		overflow-x: auto;
+		white-space: nowrap;
 		user-select: all;
+	}
+
+	.copy-btn {
+		flex-shrink: 0;
+		padding: 0 14px;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--color-primary);
+		background-color: rgb(var(--color-primary-rgb) / 0.08);
+		border: 1px solid rgb(var(--color-primary-rgb) / 0.25);
+		border-radius: 4px;
 		cursor: pointer;
+		transition: all 0.15s ease;
+		white-space: nowrap;
+	}
+
+	.copy-btn:hover {
+		background-color: var(--color-primary);
+		color: var(--color-on-primary);
+		border-color: var(--color-primary);
+	}
+
+	.copy-btn.copied {
+		color: var(--color-success);
+		background-color: rgb(var(--color-success-rgb) / 0.1);
+		border-color: rgb(var(--color-success-rgb) / 0.35);
 	}
 
 	.btn-sm {
